@@ -19,6 +19,7 @@ from . import oauth
 from . import dashboard
 from . import system
 from . import meta
+from . import search
 
 
 def register_all(mcp) -> None:
@@ -29,3 +30,4 @@ def register_all(mcp) -> None:
     dashboard.register(mcp)
     system.register(mcp)
     meta.register(mcp)
+    search.register(mcp)
