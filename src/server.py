@@ -298,6 +298,65 @@ def _restart_github_auto_task(interval_minutes: int) -> None:
 _gh_auto_interval: int = int(_gh_cfg.get("auto_interval_minutes") or 0)
 
 
+# --- JSON Backup / JSON 全库备份 ---
+from json_backup import JsonBackupManager  # type: ignore
+_bk_cfg = config.get("backup_export", {}) or {}
+_bk_token = (os.environ.get("OMBRE_BACKUP_TOKEN") or _bk_cfg.get("token") or "").strip()
+backup_manager: JsonBackupManager | None = (
+    JsonBackupManager(
+        token=_bk_token,
+        repo=_bk_cfg.get("repo", ""),
+        branch=_bk_cfg.get("branch", "main"),
+        backup_prefix=_bk_cfg.get("backup_prefix", "backup"),
+    )
+    if _bk_token and _bk_cfg.get("repo")
+    else None
+)
+_backup_auto_task: "asyncio.Task | None" = None  # 后台定时备份任务
+
+
+async def _backup_loop(interval_hours: int) -> None:
+    """后台每日 JSON 全库备份循环。"""
+    logger.info(f"[json_backup] auto-backup loop started, interval={interval_hours}h")
+    while True:
+        await asyncio.sleep(interval_hours * 3600)
+        inst = _wsh.backup_manager
+        if inst is None:
+            logger.info("[json_backup] auto-backup: instance gone, stopping loop")
+            return
+        buckets_dir = config.get("buckets_dir", "")
+        if not buckets_dir:
+            continue
+        try:
+            result = await inst.run_backup(buckets_dir, __version__)
+            if result.get("ok"):
+                logger.info(
+                    f"[json_backup] auto-backup ok: {result.get('total_count')} buckets, "
+                    f"{result.get('size_kb')} KB, sha={result.get('commit_sha', '')[:7]}"
+                )
+            else:
+                logger.warning(f"[json_backup] auto-backup failed: {result.get('error')}")
+        except Exception as e:
+            logger.error(f"[json_backup] auto-backup exception: {e}")
+
+
+def _restart_backup_task(interval_hours: int) -> None:
+    """取消旧备份任务并按新间隔重启（interval_hours=0 表示仅取消）。"""
+    global _backup_auto_task
+    if _backup_auto_task and not _backup_auto_task.done():
+        _backup_auto_task.cancel()
+        _backup_auto_task = None
+    if interval_hours > 0 and _wsh.backup_manager is not None:
+        try:
+            loop = asyncio.get_event_loop()
+            _backup_auto_task = loop.create_task(_backup_loop(interval_hours))
+        except RuntimeError:
+            pass  # 没有运行中的 event loop（测试环境），跳过
+
+
+_bk_auto_interval: int = int(_bk_cfg.get("auto_interval_hours") or 24)
+
+
 # --- Create MCP server instance / 创建 MCP 服务器实例 ---
 # host="0.0.0.0" so Docker container's SSE is externally reachable
 # stdio mode ignores host (no network)
@@ -346,6 +405,8 @@ _wsh.init_runtime(
     migrate_engine=migrate_engine,
     github_sync_instance=github_sync_instance,
     restart_github_auto_task=_restart_github_auto_task,
+    backup_manager=backup_manager,
+    restart_backup_task=_restart_backup_task,
 )
 # 启动时把磁盘上的会话装回内存（容器重启不踢登录）。鉴权/会话逻辑全在 web/_shared.py，
 # server.py 自身已无 @mcp.custom_route 路由，只需启动时载入一次会话。
@@ -880,6 +941,9 @@ if __name__ == "__main__":
                         # Auto-start GitHub sync loop if configured
                         if _gh_auto_interval > 0:
                             _restart_github_auto_task(_gh_auto_interval)
+                        # Auto-start JSON backup loop if configured
+                        if _bk_auto_interval > 0 and _wsh.backup_manager is not None:
+                            _restart_backup_task(_bk_auto_interval)
                         # Start decay engine at boot, not lazily on first MCP tool.
                         # 之前 decay 只在 breath/hold/... 首次调用时 ensure_started()，于是：
                         #   ① 纯用 dashboard、从不调 MCP 工具时，记忆永远不衰减；

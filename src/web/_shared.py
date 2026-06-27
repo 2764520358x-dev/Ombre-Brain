@@ -80,6 +80,7 @@ embedding_engine = None
 import_engine = None
 migrate_engine = None
 github_sync_instance = None
+backup_manager = None
 
 
 def init(cfg: dict) -> None:
@@ -119,6 +120,7 @@ fire_webhook = None            # async def(event: str, payload: dict) -> None
 write_deletion_notice = None   # def(names: list) -> None
 pop_deletion_notice = None     # def() -> str
 restart_github_auto_task = None # def(interval_minutes: int) -> None（起停后台 GitHub 同步任务）
+restart_backup_task = None      # def(interval_hours: int) -> None（起停后台 JSON 备份任务）
 
 
 # --- 项目 .env 读写（config / env-config / host-vault 路由共用，故放共享层）---
