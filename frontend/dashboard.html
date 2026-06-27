@@ -3123,6 +3123,7 @@
     </div>
 
     <!-- ⑦ GitHub 同步 -->
+    <!-- ⑧ JSON 全库备份 -->
     <div class="config-section" id="sec-github" data-sgroup="backup">
       <h3>GitHub 同步 <span class="sec-en">GitHub Sync</span></h3>
       <p style="font-size:12px;color:var(--text-light);margin:0 0 16px;line-height:1.7;">
@@ -3187,8 +3188,7 @@
       </div>
     </div>
 
-    <!-- ⑧ 数据备份与迁移（从「危险区」正名：这里全是安全、可逆的操作，鼓励常用） -->
-    <div class="config-section" id="sec-backup" data-sgroup="backup" style="margin-top:40px;">
+<div class="config-section" id="sec-backup" data-sgroup="backup" style="margin-top:40px;">
       <h3>数据备份与迁移 <span class="sec-en">Backup &amp; Migration</span></h3>
 
       <div style="margin-bottom:14px;font-size:12px;color:var(--text-dim);line-height:1.7;padding:9px 12px;background:rgba(194,152,47,0.06);border-radius:8px;">
@@ -7101,6 +7101,7 @@ async function saveGithubConfig() {
       msg.style.color = 'var(--success, green)';
       document.getElementById('gh-token').value = '';
       await loadGithubStatus();
+      await loadBackupStatus();
     } else {
       msg.innerHTML = _SV.err + ' ' + esc(d.error || '保存失败');
       msg.style.color = 'var(--accent)';
@@ -7190,6 +7191,78 @@ async function runGithubImport(force) {
   } catch(e) { msg.innerHTML = _SV.err + ' ' + esc(e.message || '网络错误'); msg.style.color = 'var(--negative)'; }
   if (btn) { btn.disabled = false; }
 }
+// -------- JSON 全库备份 --------
+async function loadBackupStatus() {
+  try {
+    var res = await authFetch('/api/backup/status');
+    if (!res) return;
+    var d = await res.json();
+    if (d.repo) document.getElementById('bk-repo').placeholder = '当前: ' + d.repo;
+    if (d.branch) document.getElementById('bk-branch').placeholder = '当前: ' + d.branch;
+    var ivEl = document.getElementById('bk-interval');
+    if (ivEl && d.auto_interval_hours !== undefined) ivEl.value = String(d.auto_interval_hours || 24);
+    var box = document.getElementById('bk-status-box');
+    if (d.configured && box) {
+      box.style.display = '';
+      document.getElementById('bk-st-repo').textContent = d.repo || '—';
+      document.getElementById('bk-st-time').textContent = d.last_backup ? new Date(d.last_backup).toLocaleString() : '从未';
+      document.getElementById('bk-st-count').textContent = d.last_count != null ? d.last_count + ' 条' : '—';
+      document.getElementById('bk-st-size').textContent = d.last_size_kb ? d.last_size_kb + ' KB' : '—';
+      document.getElementById('bk-st-status').innerHTML = ({idle:'待机', ok:_SV.ok+' 成功', error:_SV.err+' 失败'})[d.last_status] || esc(d.last_status);
+      var errRow = document.getElementById('bk-st-error-row');
+      if (d.last_error) { errRow.style.display = ''; document.getElementById('bk-st-error').textContent = d.last_error; }
+      else { errRow.style.display = 'none'; }
+    }
+  } catch(e) {}
+}
+
+async function saveBackupConfig() {
+  var msg = document.getElementById('bk-msg');
+  var token = (document.getElementById('bk-token').value || '').trim();
+  var repo = (document.getElementById('bk-repo').value || '').trim();
+  var branch = (document.getElementById('bk-branch').value || '').trim() || 'main';
+  var hours = parseInt(document.getElementById('bk-interval').value || '24', 10);
+  if (!repo) { msg.innerHTML = _SV.warn + ' 请填写备份仓库（owner/repo）'; msg.style.color = 'var(--accent)'; return; }
+  msg.textContent = '保存中…'; msg.style.color = '';
+  try {
+    var res = await authFetch('/api/backup/config', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({token, repo, branch, auto_interval_hours: hours}),
+    });
+    var d = await readJsonSafe(res);
+    if (d.ok) {
+      msg.innerHTML = _SV.ok + ' 配置已保存';
+      msg.style.color = 'var(--success, green)';
+      document.getElementById('bk-token').value = '';
+      await loadBackupStatus();
+    } else {
+      msg.innerHTML = _SV.err + ' ' + esc(d.error || '保存失败');
+      msg.style.color = 'var(--accent)';
+    }
+  } catch(e) { msg.innerHTML = _SV.err + ' ' + esc(e.message || '网络错误'); msg.style.color = 'var(--negative)'; }
+}
+
+async function runBackupNow() {
+  var msg = document.getElementById('bk-msg');
+  var btn = document.getElementById('bk-run-btn');
+  btn.disabled = true;
+  msg.textContent = '正在导出全库并 push 到 GitHub…'; msg.style.color = '';
+  try {
+    var res = await authFetch('/api/backup/run', {method: 'POST'});
+    var d = await readJsonSafe(res);
+    if (d.ok) {
+      msg.innerHTML = _SV.ok + ' 备份成功：' + d.total_count + ' 条桶，' + d.size_kb + ' KB → <code>' + esc(d.path) + '</code>';
+      msg.style.color = 'var(--success, green)';
+      await loadBackupStatus();
+    } else {
+      msg.innerHTML = _SV.err + ' ' + esc(d.error || '备份失败');
+      msg.style.color = 'var(--accent)';
+    }
+  } catch(e) { msg.innerHTML = _SV.err + ' ' + esc(e.message || '网络错误'); msg.style.color = 'var(--negative)'; }
+  btn.disabled = false;
+}
+
 // 静默跑一次 backfill 并等完成（导入后重建向量用）
 async function _runBackfillSilent() {
   var r = await authFetch('/api/embedding/backfill', { method: 'POST' });
