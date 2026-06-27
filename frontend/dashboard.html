@@ -2161,7 +2161,8 @@
         <a href="#sec-env" style="padding:4px 10px;border:1px solid var(--border,#ddd);border-radius:14px;text-decoration:none;color:var(--text);">⑤ 环境变量</a>
         <a href="#sec-mcp" style="padding:4px 10px;border:1px solid var(--border,#ddd);border-radius:14px;text-decoration:none;color:var(--text);">⑥ MCP 配置</a>
         <a href="#sec-github" style="padding:4px 10px;border:1px solid var(--border,#ddd);border-radius:14px;text-decoration:none;color:var(--text);">⑦ GitHub 同步</a>
-        <a href="#sec-danger" style="padding:4px 10px;border:1px solid rgba(184,92,60,0.5);border-radius:14px;text-decoration:none;color:var(--accent);">⑧ 危险区</a>
+        <a href="#sec-backup" style="padding:4px 10px;border:1px solid var(--border,#ddd);border-radius:14px;text-decoration:none;color:var(--text);">⑧ JSON 备份</a>
+        <a href="#sec-danger" style="padding:4px 10px;border:1px solid rgba(184,92,60,0.5);border-radius:14px;text-decoration:none;color:var(--accent);">⑨ 危险区</a>
       </div>
     </div>
 
@@ -2753,9 +2754,56 @@
       </div>
     </div>
 
-    <!-- ⑧ 危险区 -->
+    <!-- ⑧ JSON 全库备份 -->
+    <div class="config-section" id="sec-backup">
+      <h3>⑧ JSON 全库备份</h3>
+      <p style="font-size:12px;color:var(--text-light);margin:0 0 16px;line-height:1.6;">
+        将全库所有桶（动态、固化、归档、情绪、计划、信件、自我认知）导出为 JSON 快照，<br>
+        每天自动 push 到 GitHub 私有仓库，文件按日期命名（<code>backup/YYYY-MM-DD.json</code>），历史永久保留。
+      </p>
+
+      <div class="config-row">
+        <label>GitHub Token</label>
+        <input type="password" id="bk-token" placeholder="ghp_xxxx…（需对备份仓库的 Contents 读写权限）" style="flex:1;" />
+      </div>
+      <div class="config-row">
+        <label>备份仓库</label>
+        <input type="text" id="bk-repo" placeholder="owner/ombre-backup" style="flex:1;" />
+      </div>
+      <div class="config-row">
+        <label>分支</label>
+        <input type="text" id="bk-branch" placeholder="main" style="flex:1;" />
+      </div>
+      <div class="config-row">
+        <label>自动备份</label>
+        <select id="bk-interval" style="flex:1;">
+          <option value="24">每 24 小时</option>
+          <option value="12">每 12 小时</option>
+          <option value="6">每 6 小时</option>
+          <option value="0">关闭</option>
+        </select>
+      </div>
+
+      <div style="display:flex;gap:10px;margin-top:14px;flex-wrap:wrap;">
+        <button type="button" onclick="saveBackupConfig()" style="padding:0 14px;height:36px;font-size:13px;display:inline-flex;align-items:center;gap:5px;"><i data-lucide="check"></i> 保存配置</button>
+        <button type="button" class="btn-primary" onclick="runBackupNow()" id="bk-run-btn" style="padding:0 14px;height:36px;font-size:13px;display:inline-flex;align-items:center;gap:5px;"><i data-lucide="database-backup"></i> 立即备份</button>
+      </div>
+      <div id="bk-msg" style="margin-top:12px;font-size:12px;min-height:18px;"></div>
+
+      <div id="bk-status-box" style="margin-top:14px;padding:10px 14px;border-radius:11px;font-size:12px;display:none;background:var(--surface-solid);box-shadow:4px 4px 10px var(--shadow-dark-subtle),-3px -3px 8px var(--shadow-light);">
+        <div style="font-weight:600;margin-bottom:6px;">备份状态</div>
+        <div>仓库：<span id="bk-st-repo">—</span></div>
+        <div>最后备份：<span id="bk-st-time">—</span></div>
+        <div>桶数量：<span id="bk-st-count">—</span></div>
+        <div>文件大小：<span id="bk-st-size">—</span></div>
+        <div>状态：<span id="bk-st-status">—</span></div>
+        <div id="bk-st-error-row" style="display:none;color:var(--accent);">错误：<span id="bk-st-error"></span></div>
+      </div>
+    </div>
+
+    <!-- ⑨ 危险区 -->
     <div class="config-section" id="sec-danger" style="border:1px solid rgba(184,92,60,0.55);background:rgba(184,92,60,0.04);margin-top:40px;">
-      <h3 style="color:var(--accent);">⑧ 危险区</h3>
+      <h3 style="color:var(--accent);">⑨ 危险区</h3>
 
       <div style="margin-bottom:18px;">
         <div style="font-weight:600;font-size:13px;margin-bottom:6px;">数据导出 / 健康</div>
@@ -3712,6 +3760,7 @@ document.querySelectorAll('.tab').forEach(tab => {
       loadConfig();
       refreshEnvConfig();
       loadGithubStatus();
+      loadBackupStatus();
       loadSamplingSettings();
       loadEnvVars();
       loadHostVault();
@@ -5653,6 +5702,78 @@ async function runGithubImport() {
   } catch(e) { msg.innerHTML = _SV.err + ' ' + esc(e.message || '网络错误'); msg.style.color = 'var(--negative)'; }
   if (btn) { btn.disabled = false; }
 }
+// -------- JSON 全库备份 --------
+async function loadBackupStatus() {
+  try {
+    var res = await authFetch('/api/backup/status');
+    if (!res) return;
+    var d = await res.json();
+    if (d.repo) document.getElementById('bk-repo').placeholder = '当前: ' + d.repo;
+    if (d.branch) document.getElementById('bk-branch').placeholder = '当前: ' + d.branch;
+    var ivEl = document.getElementById('bk-interval');
+    if (ivEl && d.auto_interval_hours !== undefined) ivEl.value = String(d.auto_interval_hours || 24);
+    var box = document.getElementById('bk-status-box');
+    if (d.configured && box) {
+      box.style.display = '';
+      document.getElementById('bk-st-repo').textContent = d.repo || '—';
+      document.getElementById('bk-st-time').textContent = d.last_backup ? new Date(d.last_backup).toLocaleString() : '从未';
+      document.getElementById('bk-st-count').textContent = d.last_count != null ? d.last_count + ' 条' : '—';
+      document.getElementById('bk-st-size').textContent = d.last_size_kb ? d.last_size_kb + ' KB' : '—';
+      document.getElementById('bk-st-status').innerHTML = ({idle:'待机', ok:_SV.ok+' 成功', error:_SV.err+' 失败'})[d.last_status] || esc(d.last_status);
+      var errRow = document.getElementById('bk-st-error-row');
+      if (d.last_error) { errRow.style.display = ''; document.getElementById('bk-st-error').textContent = d.last_error; }
+      else { errRow.style.display = 'none'; }
+    }
+  } catch(e) {}
+}
+
+async function saveBackupConfig() {
+  var msg = document.getElementById('bk-msg');
+  var token = (document.getElementById('bk-token').value || '').trim();
+  var repo = (document.getElementById('bk-repo').value || '').trim();
+  var branch = (document.getElementById('bk-branch').value || '').trim() || 'main';
+  var hours = parseInt(document.getElementById('bk-interval').value || '24', 10);
+  if (!repo) { msg.innerHTML = _SV.warn + ' 请填写备份仓库（owner/repo）'; msg.style.color = 'var(--accent)'; return; }
+  msg.textContent = '保存中…'; msg.style.color = '';
+  try {
+    var res = await authFetch('/api/backup/config', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({token, repo, branch, auto_interval_hours: hours}),
+    });
+    var d = await readJsonSafe(res);
+    if (d.ok) {
+      msg.innerHTML = _SV.ok + ' 配置已保存';
+      msg.style.color = 'var(--success, green)';
+      document.getElementById('bk-token').value = '';
+      await loadBackupStatus();
+    } else {
+      msg.innerHTML = _SV.err + ' ' + esc(d.error || '保存失败');
+      msg.style.color = 'var(--accent)';
+    }
+  } catch(e) { msg.innerHTML = _SV.err + ' ' + esc(e.message || '网络错误'); msg.style.color = 'var(--negative)'; }
+}
+
+async function runBackupNow() {
+  var msg = document.getElementById('bk-msg');
+  var btn = document.getElementById('bk-run-btn');
+  btn.disabled = true;
+  msg.textContent = '正在导出全库并 push 到 GitHub…'; msg.style.color = '';
+  try {
+    var res = await authFetch('/api/backup/run', {method: 'POST'});
+    var d = await readJsonSafe(res);
+    if (d.ok) {
+      msg.innerHTML = _SV.ok + ' 备份成功：' + d.total_count + ' 条桶，' + d.size_kb + ' KB → <code>' + esc(d.path) + '</code>';
+      msg.style.color = 'var(--success, green)';
+      await loadBackupStatus();
+    } else {
+      msg.innerHTML = _SV.err + ' ' + esc(d.error || '备份失败');
+      msg.style.color = 'var(--accent)';
+    }
+  } catch(e) { msg.innerHTML = _SV.err + ' ' + esc(e.message || '网络错误'); msg.style.color = 'var(--negative)'; }
+  btn.disabled = false;
+}
+
 // 静默跑一次 backfill 并等完成（导入后重建向量用）
 async function _runBackfillSilent() {
   var r = await authFetch('/api/embedding/backfill', { method: 'POST' });
