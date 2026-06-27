@@ -542,6 +542,8 @@ class RuntimeLifecycle:
     stop_tunnel: Callable[[], Any] | None = None
     restart_github_auto_task: Callable[[int], Any] | None = None
     github_auto_interval: int = 0
+    restart_backup_task: Callable[[int], Any] | None = None
+    backup_auto_interval: int = 0
     boot_marker_path: str = ""
     keepalive_url: str = ""
     keepalive_initial_delay: float = DEFAULT_KEEPALIVE_INITIAL_DELAY_SECONDS
@@ -573,6 +575,12 @@ class RuntimeLifecycle:
                 self.restart_github_auto_task(self.github_auto_interval)
             except Exception as exc:
                 self.logger.warning("github auto-sync start failed: %s", exc)
+
+        if self.backup_auto_interval > 0 and self.restart_backup_task is not None:
+            try:
+                self.restart_backup_task(self.backup_auto_interval)
+            except Exception as exc:
+                self.logger.warning("JSON backup start failed: %s", exc)
 
     def _reset_boot_marker(self) -> None:
         if not self.boot_marker_path or not os.path.exists(self.boot_marker_path):
@@ -638,6 +646,12 @@ class RuntimeLifecycle:
                 self.restart_github_auto_task(0)
             except Exception as exc:
                 self.logger.warning("github auto-sync stop failed: %s", exc)
+
+        if self.restart_backup_task is not None:
+            try:
+                self.restart_backup_task(0)
+            except Exception as exc:
+                self.logger.warning("JSON backup stop failed: %s", exc)
 
         await self._run_async_step(
             "embedding outbox stop",

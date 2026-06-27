@@ -51,6 +51,7 @@ from ombrebrain.storage.embedding_outbox import EmbeddingOutbox
 from ombrebrain.storage.source_store import SourceStore
 from ombrebrain.security.deployment_profile import enforce_mcp_network_guard
 from import_memory import ImportEngine
+from json_backup import JsonBackupManager
 from migrate_engine import MigrateEngine
 from utils import get_version, load_config, setup_logging
 
@@ -79,6 +80,19 @@ logger = logging.getLogger("ombre_brain")
 # 赋给双下划线变量 `__version__` 是 Python 社区约定俗成的模块版本字段名。
 __version__ = get_version()
 logger.info(f"Ombre Brain v{__version__}")
+
+_bk_cfg = config.get("backup_export", {}) or {}
+_bk_token = (os.environ.get("OMBRE_BACKUP_TOKEN") or _bk_cfg.get("token") or "").strip()
+backup_manager = (
+    JsonBackupManager(
+        token=_bk_token,
+        repo=_bk_cfg.get("repo", ""),
+        branch=_bk_cfg.get("branch", "main"),
+        backup_prefix=_bk_cfg.get("backup_prefix", "backup"),
+    )
+    if _bk_token and _bk_cfg.get("repo")
+    else None
+)
 
 # --- iter 1.7 §A: legacy path migration check / 老路径迁移检测 ---
 # 场景：1.6 早期使用者习惯在项目根跑 `python server.py`；1.7 重组后需要
@@ -405,6 +419,46 @@ except Exception as _dpe:
 # 注入业务引擎/版本/仓库根目录到 web 层（类比 tools/_runtime）。
 # 注意：embedding_engine 会被热重载替换 —— 待 embedding/config 路由迁到 web/ 时，
 # 替换处须同时写 _wsh.embedding_engine（目前这些路由仍在本文件、仍走 global）。
+_backup_auto_task: asyncio.Task | None = None
+
+async def _backup_loop(interval_hours: int) -> None:
+    logger.info("[json_backup] auto-backup loop started, interval=%sh", interval_hours)
+    while True:
+        await asyncio.sleep(max(1, interval_hours) * 3600)
+        inst = _wsh.backup_manager
+        if inst is None:
+            return
+        try:
+            result = await inst.run_backup(buckets_dir, __version__)
+            if result.get("ok"):
+                logger.info(
+                    "[json_backup] auto-backup ok: %s buckets, %s KB",
+                    result.get("total_count"),
+                    result.get("size_kb"),
+                )
+            else:
+                logger.warning("[json_backup] auto-backup failed: %s", result.get("error"))
+        except asyncio.CancelledError:
+            raise
+        except Exception as exc:
+            logger.error("[json_backup] auto-backup exception: %s", exc)
+
+def _restart_backup_task(interval_hours: int) -> None:
+    global _backup_auto_task
+    if _backup_auto_task is not None and not _backup_auto_task.done():
+        _backup_auto_task.cancel()
+    _backup_auto_task = None
+    if interval_hours > 0 and _wsh.backup_manager is not None:
+        try:
+            _backup_auto_task = asyncio.get_running_loop().create_task(
+                _backup_loop(interval_hours),
+                name="ombre-json-backup",
+            )
+        except RuntimeError:
+            pass
+
+_bk_auto_interval = int(_bk_cfg.get("auto_interval_hours") or 24)
+
 _wsh.init_runtime(
     version=__version__,
     repo_root=os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
@@ -417,6 +471,8 @@ _wsh.init_runtime(
     migrate_engine=migrate_engine,
     github_sync_instance=github_sync_instance,
     restart_github_auto_task=_restart_github_auto_task,
+    backup_manager=backup_manager,
+    restart_backup_task=_restart_backup_task,
 )
 # 启动时把磁盘上的会话装回内存（容器重启不踢登录）。鉴权/会话逻辑全在 web/_shared.py，
 # server.py 自身已无 @mcp.custom_route 路由，只需启动时载入一次会话。
@@ -1199,6 +1255,8 @@ if __name__ == "__main__":
             stop_tunnel=_stop_tunnel,
             restart_github_auto_task=_restart_github_auto_task,
             github_auto_interval=_gh_auto_interval,
+            restart_backup_task=_restart_backup_task,
+            backup_auto_interval=_bk_auto_interval,
             boot_marker_path=os.path.join(
                 os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
                 ".boot_fails",
