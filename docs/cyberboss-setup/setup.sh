@@ -22,6 +22,11 @@ echo "==> 写入 cyberboss 配置"
 sed "s|/absolute/path/to/Ombre-Brain|${WORKSPACE_ROOT}|g" \
     "$(dirname "$0")/.env.configured" > ~/cyberboss/.env
 
+echo "==> 写入 system prompt（Ombre-Brain 记忆指南 + 微信人格）"
+mkdir -p ~/.cyberboss
+sed "s|{{USER_NAME}}|慢|g" "$(dirname "$0")/weixin-instructions.md" > ~/.cyberboss/weixin-instructions.md
+echo "    已写入 ~/.cyberboss/weixin-instructions.md"
+
 echo "==> 配置 Claude Code MCP：连接 Ombre-Brain 记忆系统"
 claude mcp add ombre-brain --transport http "${OMBRE_URL}/mcp" 2>/dev/null || true
 claude mcp add ombre-brain-extra --transport http "${OMBRE_URL}/mcp-extra" 2>/dev/null || true
