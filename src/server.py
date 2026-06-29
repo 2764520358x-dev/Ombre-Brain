@@ -870,8 +870,8 @@ async def I(
 
 
 @mcp.tool()
-async def watch_health() -> str:
-    """查看慢的 Apple Watch 健康数据：最新心率、今日步数、活跃卡路里、睡眠时长。数据由 iPhone 快捷指令每小时自动上报到 Supabase。"""
+async def watch_health(limit: Optional[int] = 1) -> str:
+    """查看慢的 Apple Watch 健康数据：最新心率、今日步数、活跃卡路里、睡眠时长。数据由 iPhone 快捷指令每小时自动上报到 Supabase。limit=1 看最新一条（默认），limit=N 看最近 N 条。"""
     supabase_url = "https://qlurclmvopwfxzuskydk.supabase.co"
     supabase_key = os.environ.get("SUPABASE_KEY", "")
     if not supabase_key:
@@ -880,12 +880,13 @@ async def watch_health() -> str:
         "apikey": supabase_key,
         "Authorization": f"Bearer {supabase_key}",
     }
+    fetch_limit = max(1, min(limit or 1, 10))
     try:
         async with httpx.AsyncClient(timeout=10) as client:
             resp = await client.get(
                 f"{supabase_url}/rest/v1/health_data",
                 headers=headers,
-                params={"order": "recorded_at.desc", "limit": "1"},
+                params={"order": "recorded_at.desc", "limit": str(fetch_limit)},
             )
             data = resp.json()
     except Exception as e:
