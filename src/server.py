@@ -870,7 +870,7 @@ async def I(
 
 
 @mcp.tool()
-async def health() -> str:
+async def watch_health() -> str:
     """查看慢的 Apple Watch 健康数据：最新心率、今日步数、活跃卡路里、睡眠时长。数据由 iPhone 快捷指令每小时自动上报到 Supabase。"""
     supabase_url = "https://qlurclmvopwfxzuskydk.supabase.co"
     supabase_key = os.environ.get("SUPABASE_KEY", "")
