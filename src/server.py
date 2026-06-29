@@ -301,15 +301,19 @@ _gh_auto_interval: int = int(_gh_cfg.get("auto_interval_minutes") or 0)
 # --- JSON Backup / JSON 全库备份 ---
 from json_backup import JsonBackupManager  # type: ignore
 _bk_cfg = config.get("backup_export", {}) or {}
+# 环境变量优先（Render.com 环境变量跨部署持久），其次 config.yaml
 _bk_token = (os.environ.get("OMBRE_BACKUP_TOKEN") or _bk_cfg.get("token") or "").strip()
+_bk_repo = (os.environ.get("OMBRE_BACKUP_REPO") or _bk_cfg.get("repo") or "").strip()
+_bk_branch = (os.environ.get("OMBRE_BACKUP_BRANCH") or _bk_cfg.get("branch") or "main").strip()
+_bk_prefix = (os.environ.get("OMBRE_BACKUP_PREFIX") or _bk_cfg.get("backup_prefix") or "backup").strip()
 backup_manager: JsonBackupManager | None = (
     JsonBackupManager(
         token=_bk_token,
-        repo=_bk_cfg.get("repo", ""),
-        branch=_bk_cfg.get("branch", "main"),
-        backup_prefix=_bk_cfg.get("backup_prefix", "backup"),
+        repo=_bk_repo,
+        branch=_bk_branch,
+        backup_prefix=_bk_prefix,
     )
-    if _bk_token and _bk_cfg.get("repo")
+    if _bk_token and _bk_repo
     else None
 )
 _backup_auto_task: "asyncio.Task | None" = None  # 后台定时备份任务
