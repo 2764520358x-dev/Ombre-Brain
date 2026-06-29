@@ -828,6 +828,46 @@ async def I(
     )
 
 
+@mcp_extra.tool()
+async def health() -> str:
+    """查看慢的 Apple Watch 健康数据：最新心率、今日步数、活跃卡路里、睡眠时长。数据由 iPhone 快捷指令每小时自动上报到 Supabase。"""
+    supabase_url = "https://qlurclmvopwfxzuskydk.supabase.co"
+    supabase_key = os.environ.get("SUPABASE_KEY", "")
+    if not supabase_key:
+        return "健康数据未配置（缺少 SUPABASE_KEY 环境变量）。"
+    headers = {
+        "apikey": supabase_key,
+        "Authorization": f"Bearer {supabase_key}",
+    }
+    try:
+        async with httpx.AsyncClient(timeout=10) as client:
+            resp = await client.get(
+                f"{supabase_url}/rest/v1/health_data",
+                headers=headers,
+                params={"order": "recorded_at.desc", "limit": "1"},
+            )
+            data = resp.json()
+    except Exception as e:
+        return f"获取健康数据失败：{e}"
+    if not data:
+        return "暂无健康数据。请确认 iPhone 快捷指令已运行。"
+    r = data[0]
+    ts = (r.get("recorded_at") or "")[:16].replace("T", " ")
+    lines = [f"慢的健康数据（上报时间 {ts}）"]
+    if r.get("heart_rate") is not None:
+        lines.append(f"心率：{r['heart_rate']} bpm")
+    if r.get("steps") is not None:
+        lines.append(f"步数：{r['steps']} 步（今日最新）")
+    if r.get("active_calories") is not None:
+        lines.append(f"活跃卡路里：{r['active_calories']} kcal")
+    if r.get("sleep_minutes") is not None:
+        sm = r["sleep_minutes"]
+        lines.append(f"睡眠：{sm // 60}h {sm % 60}min")
+    if r.get("watch_battery") is not None:
+        lines.append(f"手表电量：{r['watch_battery']}%")
+    return "\n".join(lines)
+
+
 @mcp.tool()
 async def dream(window_hours: Optional[int] = 48) -> str:
     """我做一次梦——读取最近 window_hours（默认 48h）内有变动的所有记忆桶,我自己沉进去想一遍。
