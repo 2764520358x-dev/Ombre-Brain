@@ -316,20 +316,56 @@ _backup_auto_task: "asyncio.Task | None" = None  # 后台定时备份任务
 
 
 async def _backup_loop(interval_hours: int) -> None:
-    """后台每日 JSON 全库备份循环。"""
-    logger.info(f"[json_backup] auto-backup loop started, interval={interval_hours}h")
+    """后台每日 JSON 全库备份循环。
+
+    启动时读取持久化时间戳，计算距下次备份的剩余时间再睡眠，
+    避免 Render.com 每次唤醒都把 24h 倒计时清零。
+    """
+    import json as _json_mod, time as _time_mod
+
+    interval_secs = interval_hours * 3600
+    buckets_dir = config.get("buckets_dir", "")
+    state_path = os.path.join(buckets_dir, ".backup_state.json") if buckets_dir else ""
+
+    # 读取上次备份时间戳（持久化在磁盘，重启后仍有效）
+    last_ts = 0.0
+    if state_path:
+        try:
+            if os.path.exists(state_path):
+                with open(state_path, "r", encoding="utf-8") as _f:
+                    last_ts = float(_json_mod.load(_f).get("last_ts", 0))
+        except Exception:
+            pass
+
+    elapsed = _time_mod.time() - last_ts
+    remaining = interval_secs - elapsed
+    # 已逾期或从未备份：给服务 60 秒启动缓冲后立即运行；否则等剩余时间
+    first_sleep = max(60.0, remaining)
+    logger.info(
+        f"[json_backup] auto-backup loop started, interval={interval_hours}h, "
+        f"first run in {first_sleep/3600:.2f}h"
+    )
+    await asyncio.sleep(first_sleep)
+
     while True:
-        await asyncio.sleep(interval_hours * 3600)
         inst = _wsh.backup_manager
         if inst is None:
             logger.info("[json_backup] auto-backup: instance gone, stopping loop")
             return
         buckets_dir = config.get("buckets_dir", "")
         if not buckets_dir:
+            await asyncio.sleep(interval_secs)
             continue
         try:
             result = await inst.run_backup(buckets_dir, __version__)
             if result.get("ok"):
+                # 持久化时间戳，重启后用于计算剩余睡眠时间
+                if state_path:
+                    try:
+                        with open(state_path, "w", encoding="utf-8") as _f:
+                            _json_mod.dump({"last_ts": _time_mod.time()}, _f)
+                    except Exception:
+                        pass
                 logger.info(
                     f"[json_backup] auto-backup ok: {result.get('total_count')} buckets, "
                     f"{result.get('size_kb')} KB, sha={result.get('commit_sha', '')[:7]}"
@@ -338,6 +374,7 @@ async def _backup_loop(interval_hours: int) -> None:
                 logger.warning(f"[json_backup] auto-backup failed: {result.get('error')}")
         except Exception as e:
             logger.error(f"[json_backup] auto-backup exception: {e}")
+        await asyncio.sleep(interval_secs)
 
 
 def _restart_backup_task(interval_hours: int) -> None:
