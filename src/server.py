@@ -929,7 +929,7 @@ async def search(query: str, count: Optional[int] = 5) -> str:
         return f"搜索失败：{e}"
     results = (data.get("web") or {}).get("results") or []
     if not results:
-        return f"没有找到关于"{query}"的结果。"
+        return f"没有找到关于 {query} 的结果。"
     lines = [f"搜索：{query}\n"]
     for i, r in enumerate(results[:n], 1):
         title = r.get("title", "")
