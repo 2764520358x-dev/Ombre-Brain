@@ -911,6 +911,35 @@ async def watch_health(limit: Optional[int] = 1) -> str:
 
 
 @mcp.tool()
+async def search(query: str, count: Optional[int] = 5) -> str:
+    """用 Brave Search 搜索网络。query=搜索关键词，count=返回条数（默认5，最多10）。用于查询实时信息、新闻、天气、任何需要联网才能知道的内容。"""
+    api_key = os.environ.get("BRAVE_SEARCH_KEY", "")
+    if not api_key:
+        return "搜索未配置（缺少 BRAVE_SEARCH_KEY 环境变量）。"
+    n = max(1, min(count or 5, 10))
+    try:
+        async with httpx.AsyncClient(timeout=10) as client:
+            resp = await client.get(
+                "https://api.search.brave.com/res/v1/web/search",
+                headers={"X-Subscription-Token": api_key, "Accept": "application/json"},
+                params={"q": query, "count": str(n), "text_decorations": "false"},
+            )
+            data = resp.json()
+    except Exception as e:
+        return f"搜索失败：{e}"
+    results = (data.get("web") or {}).get("results") or []
+    if not results:
+        return f"没有找到关于"{query}"的结果。"
+    lines = [f"搜索：{query}\n"]
+    for i, r in enumerate(results[:n], 1):
+        title = r.get("title", "")
+        desc = r.get("description", "")
+        url = r.get("url", "")
+        lines.append(f"{i}. {title}\n   {desc}\n   {url}")
+    return "\n\n".join(lines)
+
+
+@mcp.tool()
 async def dream(window_hours: Optional[int] = 48) -> str:
     """我做一次梦——读取最近 window_hours（默认 48h）内有变动的所有记忆桶,我自己沉进去想一遍。
     每个桶返回它在窗口内的最新内容（按 last_active 取）,完整正文不截断。
