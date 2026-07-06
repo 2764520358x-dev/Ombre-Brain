@@ -268,6 +268,19 @@ footer {
 }
 .bubble.sticker::before, .bubble.sticker::after { display: none !important; }
 
+/* Voice message bubble */
+.bubble.voice-msg {
+  display: flex; align-items: center; gap: 8px;
+  min-width: 110px; max-width: 180px;
+  padding: 10px 14px !important;
+}
+.voice-bars {
+  letter-spacing: 1px; font-size: 11px;
+  color: rgba(0,0,0,0.35); flex: 1;
+  line-height: 1;
+}
+.voice-dur { font-size: 14px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+
 /* Image bubble */
 .bubble img.chat-img {
   max-width: 200px;
@@ -762,48 +775,96 @@ document.getElementById('input').addEventListener('keydown', e => {
   if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
 });
 
-// ── CHAT MIC (语音输入) ───────────────────────────────────────────────────────
-let chatMicActive = false;
+// ── CHAT MIC (按住发语音) ─────────────────────────────────────────────────────
 let chatRecognition = null;
+let voiceRecorder   = null;
+let voiceStartTime  = 0;
+let voiceTranscript = '';
+let isVoiceRecording = false;
 const chatMicBtn = document.getElementById('chat-mic-btn');
+chatMicBtn.style.touchAction = 'none';
 
-chatMicBtn.onclick = () => {
-  if (!SpeechRecognition) { alert('浏览器不支持语音识别'); return; }
-  if (chatMicActive) {
-    chatMicActive = false;
-    try { chatRecognition.stop(); } catch(e) {}
-    chatMicBtn.style.background = '';
-    chatMicBtn.style.color = '';
-    return;
-  }
-  chatMicActive = true;
+async function startVoiceRecord(e) {
+  e.preventDefault();
+  if (isGenerating || isVoiceRecording) return;
+  isVoiceRecording = true;
+  voiceTranscript  = '';
+  voiceStartTime   = Date.now();
   chatMicBtn.style.background = '#E74C3C';
   chatMicBtn.style.color = '#fff';
+  document.getElementById('input').placeholder = '录音中… 松开发送';
 
-  chatRecognition = new SpeechRecognition();
-  chatRecognition.lang = 'zh-CN';
-  chatRecognition.continuous = false;
-  chatRecognition.interimResults = false;
+  if (SpeechRecognition) {
+    chatRecognition = new SpeechRecognition();
+    chatRecognition.lang = 'zh-CN';
+    chatRecognition.continuous = true;
+    chatRecognition.interimResults = false;
+    chatRecognition.onresult = ev => {
+      for (let i = ev.resultIndex; i < ev.results.length; i++) {
+        if (ev.results[i].isFinal) voiceTranscript += ev.results[i][0].transcript;
+      }
+    };
+    try { chatRecognition.start(); } catch(err) {}
+  }
 
-  chatRecognition.onresult = (e) => {
-    const t = e.results[0][0].transcript.trim();
-    if (t) {
-      document.getElementById('input').value = t;
-      sendMessage();
-    }
-  };
-  chatRecognition.onend = () => {
-    chatMicActive = false;
-    chatMicBtn.style.background = '';
-    chatMicBtn.style.color = '';
-  };
-  chatRecognition.onerror = () => {
-    chatMicActive = false;
-    chatMicBtn.style.background = '';
-    chatMicBtn.style.color = '';
-  };
-  chatRecognition.start();
-};
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    voiceRecorder = new MediaRecorder(stream);
+    voiceRecorder.start();
+  } catch(err) { voiceRecorder = null; }
+}
+
+function stopVoiceRecord() {
+  if (!isVoiceRecording) return;
+  isVoiceRecording = false;
+  chatMicBtn.style.background = '';
+  chatMicBtn.style.color = '';
+  document.getElementById('input').placeholder = '发消息…';
+
+  const duration = Math.max(1, Math.round((Date.now() - voiceStartTime) / 1000));
+
+  if (voiceRecorder) {
+    try { voiceRecorder.stream?.getTracks().forEach(t => t.stop()); } catch(err) {}
+    try { voiceRecorder.stop(); } catch(err) {}
+    voiceRecorder = null;
+  }
+
+  if (chatRecognition) {
+    const tid = setTimeout(() => {
+      chatRecognition = null;
+      sendVoiceMsg(duration, voiceTranscript);
+    }, 1500);
+    chatRecognition.onend = () => { clearTimeout(tid); chatRecognition = null; sendVoiceMsg(duration, voiceTranscript); };
+    try { chatRecognition.stop(); } catch(err) { clearTimeout(tid); chatRecognition = null; sendVoiceMsg(duration, voiceTranscript); }
+  } else {
+    sendVoiceMsg(duration, voiceTranscript);
+  }
+}
+
+function sendVoiceMsg(duration, transcript) {
+  const msgs = document.getElementById('messages');
+  const userTime = now();
+  const { contentEl } = createMsgRow('user');
+  const bub = document.createElement('div');
+  bub.className = 'bubble voice-msg';
+  const mm = String(Math.floor(duration / 60)).padStart(2, '0');
+  const ss = String(duration % 60).padStart(2, '0');
+  bub.innerHTML = `🎤 <span class="voice-bars">▌▍▌▎▍▌</span><span class="voice-dur">${mm}:${ss}</span>`;
+  contentEl.appendChild(bub);
+  const t = document.createElement('div');
+  t.className = 'msg-time';
+  t.textContent = userTime;
+  contentEl.appendChild(t);
+  msgs.scrollTop = msgs.scrollHeight;
+  history.push({ role: 'user', text: transcript || '[语音]', time: userTime });
+  saveHistory();
+  streamAI(transcript ? `[语音："${transcript}"]` : '[用户发来一条语音消息]');
+}
+
+chatMicBtn.addEventListener('pointerdown',  startVoiceRecord);
+chatMicBtn.addEventListener('pointerup',    stopVoiceRecord);
+chatMicBtn.addEventListener('pointercancel', stopVoiceRecord);
+chatMicBtn.addEventListener('pointerleave', stopVoiceRecord);
 
 // ── STICKER PANEL ─────────────────────────────────────────────────────────────
 const STICKERS = ['😺','😸','😹','😻','😼','😽','🙀','😿','😾','🐱','🐈','🐾',
