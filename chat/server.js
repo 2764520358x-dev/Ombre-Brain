@@ -119,8 +119,9 @@ app.post('/api/chat', auth, (req, res) => {
   console.log(`[chat] chatId=${chatId} listeners=${proc._listeners.size} sending message`);
   sendMsg(proc, text);
 
-  // 客户端断开不 kill 进程：生成继续跑，下次重连从存储补发
-  req.on('close', () => proc._listeners.delete(onEvent));
+  // 用 res.on('close') 而不是 req.on('close')：
+  // POST body 读完后 req 会提前关闭，res 才代表 SSE 流的真实生命周期
+  res.on('close', () => proc._listeners.delete(onEvent));
 });
 
 // ─── DELETE /api/session/:id ─────────────────────────────────────────────────
