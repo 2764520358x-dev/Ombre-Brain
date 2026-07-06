@@ -15,7 +15,9 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 const PORT        = parseInt(process.env.PORT        || '3000', 10);
 const CHAT_SECRET = process.env.CHAT_SECRET          || '';
-const MODEL       = process.env.MODEL                || 'opus';
+const MODEL              = process.env.MODEL                || 'opus';
+const AZURE_SPEECH_KEY   = process.env.AZURE_SPEECH_KEY    || '';
+const AZURE_SPEECH_REGION= process.env.AZURE_SPEECH_REGION || 'southeastasia';
 const MCP_CONFIG  = path.join(__dirname, '.mcp.json');
 const PERSONA     = path.join(__dirname, 'persona.md');
 
@@ -163,6 +165,40 @@ app.post('/api/push/send', auth, async (req, res) => {
   try {
     await webpush.sendNotification(sub, JSON.stringify({ title: title || 'Ombre', body: body || '' }));
     res.json({ ok: true });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ─── POST /api/tts ────────────────────────────────────────────────────────────
+app.post('/api/tts', auth, async (req, res) => {
+  const { text } = req.body || {};
+  if (!text) return res.status(400).json({ error: 'text required' });
+  if (!AZURE_SPEECH_KEY) return res.status(503).json({ error: 'TTS not configured' });
+
+  const escaped = text.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  const ssml = `<speak version='1.0' xml:lang='zh-CN'><voice name='zh-CN-XiaoxiaoNeural'>${escaped}</voice></speak>`;
+
+  try {
+    const resp = await fetch(
+      `https://${AZURE_SPEECH_REGION}.tts.speech.microsoft.com/cognitiveservices/v1`,
+      {
+        method: 'POST',
+        headers: {
+          'Ocp-Apim-Subscription-Key': AZURE_SPEECH_KEY,
+          'Content-Type': 'application/ssml+xml',
+          'X-Microsoft-OutputFormat': 'audio-16khz-128kbitrate-mono-mp3',
+        },
+        body: ssml,
+      }
+    );
+    if (!resp.ok) {
+      const err = await resp.text();
+      return res.status(resp.status).json({ error: err });
+    }
+    res.setHeader('Content-Type', 'audio/mpeg');
+    const buf = await resp.arrayBuffer();
+    res.send(Buffer.from(buf));
   } catch (e) {
     res.status(500).json({ error: e.message });
   }

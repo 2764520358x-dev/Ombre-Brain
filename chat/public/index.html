@@ -981,30 +981,41 @@ let callTimerInterval = null;
 let callSeconds = 0;
 let speakerOn = true;
 let callListening = false;
-let zhVoice = null;
+let currentAudio = null;
 
-// 预加载中文声音
-function loadVoices() {
-  const voices = speechSynthesis.getVoices();
-  zhVoice = voices.find(v => v.lang.startsWith('zh')) || voices[0] || null;
-}
-if (window.speechSynthesis) {
-  speechSynthesis.addEventListener('voiceschanged', loadVoices);
-  loadVoices();
-}
-
-// TTS
-function speak(text) {
-  if (!speakerOn || !window.speechSynthesis || !text) return;
-  speechSynthesis.cancel();
-  const utt = new SpeechSynthesisUtterance(text);
-  utt.lang = 'zh-CN';
-  utt.rate = 0.95;
-  utt.pitch = 0.85;
-  if (zhVoice) utt.voice = zhVoice;
-  utt.onend = () => { if (callActive && !isGenerating) startCallListening(); };
-  utt.onerror = () => { if (callActive && !isGenerating) startCallListening(); };
-  speechSynthesis.speak(utt);
+// Azure TTS（服务端代理）
+async function speak(text) {
+  if (!speakerOn || !text) return;
+  if (currentAudio) { currentAudio.pause(); currentAudio = null; }
+  try {
+    const res = await fetch(`${cfg.host}/api/tts`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(cfg.secret ? { Authorization: `Bearer ${cfg.secret}` } : {}),
+      },
+      body: JSON.stringify({ text }),
+    });
+    if (!res.ok) throw new Error('TTS error');
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    currentAudio = new Audio(url);
+    if (callActive) document.getElementById('call-status-txt').textContent = '回复中…';
+    currentAudio.onended = () => {
+      URL.revokeObjectURL(url);
+      currentAudio = null;
+      if (callActive && !isGenerating) startCallListening();
+    };
+    currentAudio.onerror = () => {
+      URL.revokeObjectURL(url);
+      currentAudio = null;
+      if (callActive && !isGenerating) startCallListening();
+    };
+    await currentAudio.play();
+  } catch (e) {
+    console.error('[TTS]', e);
+    if (callActive && !isGenerating) startCallListening();
+  }
 }
 
 function startCallListening() {
@@ -1042,7 +1053,7 @@ function openCall() {
     recognition.onend = () => {
       callListening = false;
       document.getElementById('call-mic').classList.remove('listening');
-      if (callActive && !isGenerating && !speechSynthesis.speaking) {
+      if (callActive && !isGenerating && !currentAudio) {
         document.getElementById('call-status-txt').textContent = '通话中';
       }
     };
@@ -1078,18 +1089,12 @@ function closeCall() {
   callActive = false;
   clearInterval(callTimerInterval);
   if (recognition) { try { recognition.stop(); } catch(e) {} recognition = null; }
-  if (window.speechSynthesis) speechSynthesis.cancel();
+  if (currentAudio) { currentAudio.pause(); currentAudio = null; }
   document.getElementById('call-screen').classList.remove('active');
   document.getElementById('call-timer').textContent = '00:00';
 }
 
 document.getElementById('call-btn').onclick = () => {
-  // iOS 必须在用户手势里先触发一次 TTS 才能解锁后续异步调用
-  if (window.speechSynthesis) {
-    const warmup = new SpeechSynthesisUtterance(' ');
-    warmup.volume = 0;
-    speechSynthesis.speak(warmup);
-  }
   openCall();
 };
 document.getElementById('call-end').onclick = closeCall;
@@ -1100,7 +1105,7 @@ document.getElementById('call-mic').onclick = () => {
 document.getElementById('call-vol').onclick = () => {
   speakerOn = !speakerOn;
   document.getElementById('call-vol').textContent = speakerOn ? '🔊' : '🔇';
-  if (!speakerOn) speechSynthesis.cancel();
+  if (!speakerOn && currentAudio) { currentAudio.pause(); currentAudio = null; }
 };
 
 // ── SERVICE WORKER + PUSH ─────────────────────────────────────────────────────
