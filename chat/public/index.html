@@ -399,11 +399,19 @@ footer {
 
 <script>
 // ── CONFIG ───────────────────────────────────────────────────────────────────
+function uuid() {
+  // crypto.randomUUID() 需要 HTTPS；这个兼容 HTTP
+  if (typeof crypto !== 'undefined' && crypto.randomUUID) return crypto.randomUUID();
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
+    const r = Math.random() * 16 | 0;
+    return (c === 'x' ? r : (r & 0x3 | 0x8)).toString(16);
+  });
+}
 const cfg = {
   host:   localStorage.getItem('ombre_host')   || location.origin,
   secret: localStorage.getItem('ombre_secret') || '',
 };
-let chatId = localStorage.getItem('ombre_chatid') || crypto.randomUUID();
+let chatId = localStorage.getItem('ombre_chatid') || uuid();
 localStorage.setItem('ombre_chatid', chatId);
 
 // ── AUTH ─────────────────────────────────────────────────────────────────────
@@ -443,7 +451,7 @@ document.getElementById('new-session-btn').onclick = () => {
     method: 'DELETE',
     headers: cfg.secret ? { Authorization: `Bearer ${cfg.secret}` } : {},
   }).catch(() => {});
-  chatId = crypto.randomUUID();
+  chatId = uuid();
   localStorage.setItem('ombre_chatid', chatId);
   history = [];
   saveHistory();
