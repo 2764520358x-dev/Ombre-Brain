@@ -690,9 +690,41 @@ document.getElementById('input').addEventListener('keydown', e => {
   if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
 });
 
-// ── SERVICE WORKER ────────────────────────────────────────────────────────────
+// ── SERVICE WORKER + PUSH ─────────────────────────────────────────────────────
+function urlB64ToUint8(b64) {
+  const pad = '='.repeat((4 - b64.length % 4) % 4);
+  const raw = atob((b64 + pad).replace(/-/g, '+').replace(/_/g, '/'));
+  return Uint8Array.from([...raw].map(c => c.charCodeAt(0)));
+}
+
+async function subscribePush(reg) {
+  if (!('PushManager' in window)) return;
+  try {
+    const perm = await Notification.requestPermission();
+    if (perm !== 'granted') return;
+    const { key } = await fetch(`${cfg.host}/api/push/key`).then(r => r.json());
+    const sub = await reg.pushManager.subscribe({
+      userVisibleOnly: true,
+      applicationServerKey: urlB64ToUint8(key),
+    });
+    await fetch(`${cfg.host}/api/push/subscribe`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(cfg.secret ? { Authorization: `Bearer ${cfg.secret}` } : {}),
+      },
+      body: JSON.stringify({ chatId, subscription: sub }),
+    });
+    console.log('[push] subscribed');
+  } catch (e) {
+    console.warn('[push] failed:', e);
+  }
+}
+
 if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('/sw.js').catch(() => {});
+  navigator.serviceWorker.register('/sw.js')
+    .then(reg => subscribePush(reg))
+    .catch(() => {});
 }
 </script>
 </body>

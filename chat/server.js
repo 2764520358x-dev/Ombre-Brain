@@ -8,6 +8,7 @@ import express from 'express';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import webpush from 'web-push';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -23,6 +24,20 @@ app.use(express.static(path.join(__dirname, 'public')));
 
 // chatId -> ChildProcess（一会话一进程，上下文不串）
 const procs = new Map();
+
+// ─── Web Push ─────────────────────────────────────────────────────────────────
+const VAPID_FILE = path.join(__dirname, '.vapid.json');
+let vapidKeys;
+if (fs.existsSync(VAPID_FILE)) {
+  vapidKeys = JSON.parse(fs.readFileSync(VAPID_FILE, 'utf8'));
+} else {
+  vapidKeys = webpush.generateVAPIDKeys();
+  fs.writeFileSync(VAPID_FILE, JSON.stringify(vapidKeys));
+  console.log('[push] Generated new VAPID keys');
+}
+webpush.setVapidDetails('mailto:2764520358x@gmail.com', vapidKeys.publicKey, vapidKeys.privateKey);
+
+const pushSubs = new Map(); // chatId -> PushSubscription
 
 // ─── spawn ────────────────────────────────────────────────────────────────────
 function spawnCC(chatId) {
@@ -126,9 +141,34 @@ app.delete('/api/session/:id', auth, (req, res) => {
   res.json({ ok: true });
 });
 
+// ─── GET /api/push/key ────────────────────────────────────────────────────────
+app.get('/api/push/key', (_, res) => res.json({ key: vapidKeys.publicKey }));
+
+// ─── POST /api/push/subscribe ─────────────────────────────────────────────────
+app.post('/api/push/subscribe', auth, (req, res) => {
+  const { chatId, subscription } = req.body || {};
+  if (!chatId || !subscription) return res.status(400).json({ error: 'bad request' });
+  pushSubs.set(chatId, subscription);
+  console.log(`[push] subscribed chatId=${chatId}`);
+  res.json({ ok: true });
+});
+
+// ─── POST /api/push/send ──────────────────────────────────────────────────────
+app.post('/api/push/send', auth, async (req, res) => {
+  const { chatId, title, body } = req.body || {};
+  const sub = chatId ? pushSubs.get(chatId) : [...pushSubs.values()][0];
+  if (!sub) return res.status(404).json({ error: 'no subscription' });
+  try {
+    await webpush.sendNotification(sub, JSON.stringify({ title: title || 'Ombre', body: body || '' }));
+    res.json({ ok: true });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 // ─── GET /api/health ─────────────────────────────────────────────────────────
 app.get('/api/health', (_, res) =>
-  res.json({ ok: true, sessions: procs.size, uptime: Math.floor(process.uptime()) })
+  res.json({ ok: true, sessions: procs.size, push: pushSubs.size, uptime: Math.floor(process.uptime()) })
 );
 
 // 只监听本机，公网流量通过 nginx 代理进来

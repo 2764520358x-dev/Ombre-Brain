@@ -14,9 +14,32 @@ self.addEventListener('activate', e =>
 );
 
 self.addEventListener('fetch', e => {
-  // API 请求不走缓存
   if (e.request.url.includes('/api/')) return;
   e.respondWith(
     caches.match(e.request).then(cached => cached || fetch(e.request))
+  );
+});
+
+self.addEventListener('push', e => {
+  const d = e.data?.json?.() || {};
+  e.waitUntil(
+    self.registration.showNotification(d.title || 'Ombre', {
+      body: d.body || '',
+      icon: '/icon-192.png',
+      badge: '/icon-192.png',
+      data: { url: '/' },
+    })
+  );
+});
+
+self.addEventListener('notificationclick', e => {
+  e.notification.close();
+  e.waitUntil(
+    clients.matchAll({ type: 'window' }).then(list => {
+      for (const c of list) {
+        if ('focus' in c) return c.focus();
+      }
+      if (clients.openWindow) return clients.openWindow('/');
+    })
   );
 });
