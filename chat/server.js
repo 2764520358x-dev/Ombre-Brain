@@ -9,6 +9,7 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import webpush from 'web-push';
+import cron from 'node-cron';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -170,6 +171,63 @@ app.post('/api/push/send', auth, async (req, res) => {
 app.get('/api/health', (_, res) =>
   res.json({ ok: true, sessions: procs.size, push: pushSubs.size, uptime: Math.floor(process.uptime()) })
 );
+
+// ─── 主动消息 ─────────────────────────────────────────────────────────────────
+async function sendProactiveMessage(prompt) {
+  if (pushSubs.size === 0) { console.log('[proactive] no push subscribers'); return; }
+  const chatId = [...pushSubs.keys()][0];
+  const proc = procs.get(chatId) || spawnCC(chatId);
+
+  let fullText = '';
+  await Promise.race([
+    new Promise(resolve => {
+      const listener = ev => {
+        if (ev.type === 'stream_event') {
+          const delta = ev.event?.delta;
+          if (delta?.type === 'text_delta') fullText += delta.text || '';
+        }
+        if (ev.type === 'result') { proc._listeners.delete(listener); resolve(); }
+      };
+      proc._listeners.add(listener);
+      sendMsg(proc, prompt);
+    }),
+    new Promise(resolve => setTimeout(resolve, 90000)), // 90s 超时保底
+  ]);
+
+  if (!fullText) return;
+  const sub = pushSubs.get(chatId);
+  try {
+    await webpush.sendNotification(sub, JSON.stringify({
+      title: 'Ombre · 阴影',
+      body: fullText.slice(0, 250),
+    }));
+    console.log('[proactive] push sent');
+  } catch (e) {
+    console.error('[proactive] push failed:', e.message);
+    pushSubs.delete(chatId); // 订阅失效则删掉
+  }
+}
+
+function shanghaiHour() {
+  return new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Shanghai' })).getHours();
+}
+
+// 每天早上8点（北京时间）
+cron.schedule('0 8 * * *', () => {
+  sendProactiveMessage('【系统提示】现在是早上8点，请主动给用户发一条早安消息，结合我们之前的对话内容，简短自然，有你自己的风格。').catch(console.error);
+}, { timezone: 'Asia/Shanghai' });
+
+// 随机 20-60 分钟主动联系（只在北京时间 8:00-23:00 之间触发）
+function scheduleNextRandom() {
+  const delay = (20 + Math.random() * 40) * 60 * 1000;
+  setTimeout(async () => {
+    if (shanghaiHour() >= 8 && shanghaiHour() < 23) {
+      await sendProactiveMessage('【系统提示】请根据我们之前的对话，主动发一条消息给用户，可以是关心、一个想法、或随意的问候，简短自然。').catch(console.error);
+    }
+    scheduleNextRandom();
+  }, delay);
+}
+scheduleNextRandom();
 
 // 只监听本机，公网流量通过 nginx 代理进来
 app.listen(PORT, '127.0.0.1', () =>
