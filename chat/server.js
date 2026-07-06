@@ -33,7 +33,7 @@ function spawnCC(chatId) {
     '--verbose',                        // 必须：不带则只有 result 事件
     '--include-partial-messages',       // token 级 delta（打字机 + thinking）
     '--model', MODEL,
-    '--permission-mode', 'acceptEdits',  // root 下不能用 dangerously-skip-permissions
+    '--permission-mode', 'dontAsk',      // 非交互模式：未授权的工具调用直接拒绝不挂起
     '--allowedTools', 'mcp__ombre-brain__breath,mcp__ombre-brain__hold,mcp__ombre-brain__grow,mcp__ombre-brain__trace,mcp__ombre-brain__search,mcp__ombre-brain__dream,mcp__ombre-brain__watch_health',
     '--thinking-display', 'summarized', // 隐藏 flag，4.7+ 默认 omitted 需手动开
   ];
@@ -45,7 +45,7 @@ function spawnCC(chatId) {
   const env = { ...process.env };
   delete env.ANTHROPIC_API_KEY;
 
-  const proc = spawn('claude', args, { cwd: __dirname, env, stdio: ['pipe', 'pipe', 'pipe'] });
+  const proc = spawn('claude', args, { cwd: '/tmp', env, stdio: ['pipe', 'pipe', 'pipe'] });
 
   proc._buf       = '';
   proc._listeners = new Set();
