@@ -1028,12 +1028,13 @@ let callTimerInterval = null;
 let callSeconds = 0;
 let speakerOn = true;
 let callListening = false;
-let currentAudio = null;
+let audioCtx = null;     // Web Audio API context（必须在用户手势里创建）
+let currentSource = null; // AudioBufferSourceNode
 
-// Azure TTS（服务端代理）
+// Azure TTS via Web Audio API（iOS 兼容）
 async function speak(text) {
   if (!speakerOn || !text) return;
-  if (currentAudio) { currentAudio.pause(); currentAudio = null; }
+  if (currentSource) { try { currentSource.stop(); } catch(e) {} currentSource = null; }
   try {
     const res = await fetch(`${cfg.host}/api/tts`, {
       method: 'POST',
@@ -1043,22 +1044,21 @@ async function speak(text) {
       },
       body: JSON.stringify({ text }),
     });
-    if (!res.ok) throw new Error('TTS error');
-    const blob = await res.blob();
-    const url = URL.createObjectURL(blob);
-    currentAudio = new Audio(url);
+    if (!res.ok) throw new Error(`TTS ${res.status}`);
+    const arrBuf = await res.arrayBuffer();
+    if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    if (audioCtx.state === 'suspended') await audioCtx.resume();
+    const audioBuf = await audioCtx.decodeAudioData(arrBuf);
+    const src = audioCtx.createBufferSource();
+    src.buffer = audioBuf;
+    src.connect(audioCtx.destination);
     if (callActive) document.getElementById('call-status-txt').textContent = '回复中…';
-    currentAudio.onended = () => {
-      URL.revokeObjectURL(url);
-      currentAudio = null;
+    src.onended = () => {
+      currentSource = null;
       if (callActive && !isGenerating) startCallListening();
     };
-    currentAudio.onerror = () => {
-      URL.revokeObjectURL(url);
-      currentAudio = null;
-      if (callActive && !isGenerating) startCallListening();
-    };
-    await currentAudio.play();
+    src.start(0);
+    currentSource = src;
   } catch (e) {
     console.error('[TTS]', e);
     if (callActive && !isGenerating) startCallListening();
@@ -1092,6 +1092,10 @@ function expandCall() {
 }
 
 function openCall() {
+  // 在用户手势里创建 / 恢复 AudioContext，解锁 iOS 音频
+  if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  if (audioCtx.state === 'suspended') audioCtx.resume();
+
   callActive = true;
   callSeconds = 0;
   document.getElementById('call-screen').classList.add('active');
@@ -1112,7 +1116,7 @@ function openCall() {
     recognition.onend = () => {
       callListening = false;
       document.getElementById('call-mic').classList.remove('listening');
-      if (callActive && !isGenerating && !currentAudio) {
+      if (callActive && !isGenerating && !currentSource) {
         document.getElementById('call-status-txt').textContent = '通话中';
       }
     };
@@ -1148,7 +1152,7 @@ function closeCall() {
   callActive = false;
   clearInterval(callTimerInterval);
   if (recognition) { try { recognition.stop(); } catch(e) {} recognition = null; }
-  if (currentAudio) { currentAudio.pause(); currentAudio = null; }
+  if (currentSource) { try { currentSource.stop(); } catch(e) {} currentSource = null; }
   document.getElementById('call-screen').classList.remove('active');
   document.getElementById('mini-call-bar').classList.remove('active');
   document.getElementById('call-timer').textContent = '00:00';
@@ -1166,7 +1170,7 @@ document.getElementById('call-mic').onclick = () => {
 document.getElementById('call-vol').onclick = () => {
   speakerOn = !speakerOn;
   document.getElementById('call-vol').textContent = speakerOn ? '🔊' : '🔇';
-  if (!speakerOn && currentAudio) { currentAudio.pause(); currentAudio = null; }
+  if (!speakerOn && currentSource) { try { currentSource.stop(); } catch(e) {} currentSource = null; }
 };
 
 // ── SERVICE WORKER + PUSH ─────────────────────────────────────────────────────
