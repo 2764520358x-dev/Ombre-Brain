@@ -932,20 +932,28 @@ let callTimerInterval = null;
 let callSeconds = 0;
 let speakerOn = true;
 let callListening = false;
+let zhVoice = null;
+
+// 预加载中文声音
+function loadVoices() {
+  const voices = speechSynthesis.getVoices();
+  zhVoice = voices.find(v => v.lang.startsWith('zh')) || voices[0] || null;
+}
+if (window.speechSynthesis) {
+  speechSynthesis.addEventListener('voiceschanged', loadVoices);
+  loadVoices();
+}
 
 // TTS
 function speak(text) {
   if (!speakerOn || !window.speechSynthesis || !text) return;
-  window.speechSynthesis.cancel();
+  speechSynthesis.cancel();
   const utt = new SpeechSynthesisUtterance(text);
   utt.lang = 'zh-CN';
   utt.rate = 1.05;
-  const voices = speechSynthesis.getVoices();
-  const zh = voices.find(v => v.lang.startsWith('zh'));
-  if (zh) utt.voice = zh;
-  utt.onend = () => {
-    if (callActive) startCallListening();
-  };
+  if (zhVoice) utt.voice = zhVoice;
+  utt.onend = () => { if (callActive && !isGenerating) startCallListening(); };
+  utt.onerror = () => { if (callActive && !isGenerating) startCallListening(); };
   speechSynthesis.speak(utt);
 }
 
@@ -1025,7 +1033,15 @@ function closeCall() {
   document.getElementById('call-timer').textContent = '00:00';
 }
 
-document.getElementById('call-btn').onclick = openCall;
+document.getElementById('call-btn').onclick = () => {
+  // iOS 必须在用户手势里先触发一次 TTS 才能解锁后续异步调用
+  if (window.speechSynthesis) {
+    const warmup = new SpeechSynthesisUtterance(' ');
+    warmup.volume = 0;
+    speechSynthesis.speak(warmup);
+  }
+  openCall();
+};
 document.getElementById('call-end').onclick = closeCall;
 document.getElementById('call-mic').onclick = () => {
   if (callListening) { try { recognition.stop(); } catch(e) {} }
