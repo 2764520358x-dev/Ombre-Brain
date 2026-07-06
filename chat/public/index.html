@@ -215,8 +215,66 @@ footer {
   padding: 8px 12px;
   padding-bottom: max(8px, env(safe-area-inset-bottom));
   flex-shrink: 0;
+  position: relative;
 }
 .input-row { display: flex; align-items: flex-end; gap: 8px; }
+
+/* Sticker panel */
+#sticker-panel {
+  display: none;
+  padding: 10px 4px 4px;
+  border-top: 1px solid #D0D0D0;
+  margin-bottom: 8px;
+}
+#sticker-panel.open { display: block; }
+.sticker-grid {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 2px;
+}
+.sticker-item {
+  font-size: 34px;
+  text-align: center;
+  padding: 6px 2px;
+  border-radius: 8px;
+  cursor: pointer;
+  line-height: 1;
+  -webkit-tap-highlight-color: transparent;
+}
+.sticker-item:active { background: rgba(0,0,0,0.08); }
+
+/* Footer icon buttons */
+.footer-icon-btn {
+  width: 38px; height: 38px;
+  border-radius: 50%;
+  border: none;
+  background: #E8E8E8;
+  color: #555;
+  cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+  font-size: 18px;
+  transition: background 0.15s;
+}
+.footer-icon-btn:active { background: #D0D0D0; }
+
+/* Sticker bubble — transparent, big emoji */
+.bubble.sticker {
+  background: transparent !important;
+  border: none !important;
+  font-size: 56px;
+  line-height: 1;
+  padding: 4px 0 !important;
+}
+.bubble.sticker::before, .bubble.sticker::after { display: none !important; }
+
+/* Image bubble */
+.bubble img.chat-img {
+  max-width: 200px;
+  max-height: 200px;
+  border-radius: 8px;
+  display: block;
+}
 #input {
   flex: 1;
   background: #FFF;
@@ -369,7 +427,17 @@ footer {
 
 <!-- INPUT -->
 <footer>
+  <div id="sticker-panel">
+    <div class="sticker-grid" id="sticker-grid"></div>
+  </div>
   <div class="input-row">
+    <button class="footer-icon-btn" id="photo-btn" title="发图片">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/>
+        <polyline points="21 15 16 10 5 21"/>
+      </svg>
+    </button>
+    <button class="footer-icon-btn" id="sticker-btn" title="贴纸">🐱</button>
     <textarea id="input" placeholder="发消息…" rows="1"></textarea>
     <button id="send-btn">
       <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
@@ -377,6 +445,7 @@ footer {
       </svg>
     </button>
   </div>
+  <input type="file" id="photo-input" accept="image/*" style="display:none">
 </footer>
 
 <!-- SETTINGS PANEL -->
@@ -552,58 +621,154 @@ async function sendMessage() {
   const input = document.getElementById('input');
   const text  = input.value.trim();
   if (!text || isGenerating) return;
-
   input.value = '';
   input.style.height = '';
-  isGenerating = true;
-  document.getElementById('send-btn').disabled = true;
-
   const userTime = now();
   appendMsg('user', text, null, userTime);
   history.push({ role:'user', text, time: userTime });
   saveHistory();
+  streamAI(text);
+}
+
+// ── INPUT EVENTS ──────────────────────────────────────────────────────────────
+document.getElementById('send-btn').onclick = sendMessage;
+document.getElementById('input').addEventListener('keydown', e => {
+  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
+});
+
+// ── STICKER PANEL ─────────────────────────────────────────────────────────────
+const STICKERS = ['😺','😸','😹','😻','😼','😽','🙀','😿','😾','🐱','🐈','🐾',
+                  '💕','🎀','✨','🥺','💤','🌙','☀️','🍵','🐟','🧸','💭','🤍'];
+const stickerGrid = document.getElementById('sticker-grid');
+STICKERS.forEach(s => {
+  const el = document.createElement('div');
+  el.className = 'sticker-item';
+  el.textContent = s;
+  el.onclick = () => {
+    sendSticker(s);
+    document.getElementById('sticker-panel').classList.remove('open');
+  };
+  stickerGrid.appendChild(el);
+});
+
+document.getElementById('sticker-btn').onclick = () => {
+  document.getElementById('sticker-panel').classList.toggle('open');
+};
+
+function sendSticker(emoji) {
+  if (isGenerating) return;
+  const msgs = document.getElementById('messages');
+
+  // Show sticker bubble
+  const { contentEl } = createMsgRow('user');
+  const bub = document.createElement('div');
+  bub.className = 'bubble sticker';
+  bub.textContent = emoji;
+  contentEl.appendChild(bub);
+  const t = document.createElement('div');
+  t.className = 'msg-time';
+  t.textContent = now();
+  contentEl.appendChild(t);
+  msgs.scrollTop = msgs.scrollHeight;
+
+  const userTime = now();
+  history.push({ role:'user', text: emoji, time: userTime });
+  saveHistory();
+
+  // Send to AI and stream response
+  streamAI(emoji);
+}
+
+// ── PHOTO BUTTON ──────────────────────────────────────────────────────────────
+document.getElementById('photo-btn').onclick = () => {
+  document.getElementById('photo-input').click();
+};
+
+document.getElementById('photo-input').onchange = async (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  e.target.value = '';
+
+  const reader = new FileReader();
+  reader.onload = async (ev) => {
+    const dataUrl = ev.target.result;
+    const base64 = dataUrl.split(',')[1];
+    const mediaType = file.type || 'image/jpeg';
+    const msgs = document.getElementById('messages');
+
+    // Show image bubble
+    const { contentEl } = createMsgRow('user');
+    const bub = document.createElement('div');
+    bub.className = 'bubble';
+    bub.style.padding = '6px';
+    const img = document.createElement('img');
+    img.src = dataUrl;
+    img.className = 'chat-img';
+    bub.appendChild(img);
+    contentEl.appendChild(bub);
+    const t = document.createElement('div');
+    t.className = 'msg-time';
+    t.textContent = now();
+    contentEl.appendChild(t);
+    msgs.scrollTop = msgs.scrollHeight;
+
+    history.push({ role:'user', text:'[图片]', time: now() });
+    saveHistory();
+
+    // Send multimodal content to AI
+    const content = [
+      { type:'image', source:{ type:'base64', media_type: mediaType, data: base64 } },
+      { type:'text', text:'(用户发来一张图片)' }
+    ];
+    streamAI(null, content);
+  };
+  reader.readAsDataURL(file);
+};
+
+// ── STREAM AI (shared) ────────────────────────────────────────────────────────
+async function streamAI(text, content) {
+  if (isGenerating) return;
+  isGenerating = true;
+  document.getElementById('send-btn').disabled = true;
   setStatus('active');
 
-  // Create streaming AI row
   const msgs = document.getElementById('messages');
   const aiWrap = document.createElement('div');
   aiWrap.className = 'msg ai';
-
   const aiAvatar = document.createElement('div');
   aiAvatar.className = 'ai-avatar';
   aiWrap.appendChild(aiAvatar);
-
   const aiContent = document.createElement('div');
   aiContent.className = 'msg-content';
   aiWrap.appendChild(aiContent);
-
   const aiBub = document.createElement('div');
   aiBub.className = 'bubble streaming';
   aiContent.appendChild(aiBub);
   msgs.appendChild(aiWrap);
   msgs.scrollTop = msgs.scrollHeight;
 
-  let fullText    = '';
+  let fullText = '';
   let thinkingTxt = '';
   let thinkingWrap = null;
   let thinkingBody = null;
 
   try {
+    const body = content
+      ? JSON.stringify({ chatId, content })
+      : JSON.stringify({ chatId, text });
     const res = await fetch(`${cfg.host}/api/chat`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         ...(cfg.secret ? { Authorization: `Bearer ${cfg.secret}` } : {}),
       },
-      body: JSON.stringify({ chatId, text }),
+      body,
     });
-
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
 
     const reader = res.body.getReader();
-    const dec    = new TextDecoder();
-    let buf      = '';
-
+    const dec = new TextDecoder();
+    let buf = '';
     while (true) {
       const { done, value } = await reader.read();
       if (done) break;
@@ -615,7 +780,7 @@ async function sendMessage() {
         if (!line.startsWith('data:')) continue;
         let ev;
         try { ev = JSON.parse(line.slice(5).trim()); } catch { continue; }
-        handleEvent(ev);
+        handleStreamEvent(ev);
       }
     }
   } catch (err) {
@@ -627,11 +792,10 @@ async function sendMessage() {
     return;
   }
 
-  function handleEvent(ev) {
+  function handleStreamEvent(ev) {
     if (ev.type === 'stream_event') {
       const delta = ev.event?.delta;
       if (!delta) return;
-
       if (delta.type === 'thinking_delta' && delta.thinking) {
         setStatus('thinking');
         thinkingTxt += delta.thinking;
@@ -651,7 +815,6 @@ async function sendMessage() {
         thinkingBody.textContent = thinkingTxt;
         msgs.scrollTop = msgs.scrollHeight;
       }
-
       if (delta.type === 'text_delta' && delta.text) {
         setStatus('active');
         fullText += delta.text;
@@ -659,24 +822,26 @@ async function sendMessage() {
         msgs.scrollTop = msgs.scrollHeight;
       }
     }
-
     if (ev.type === 'system/api_retry') {
       const notice = document.createElement('div');
       notice.className = 'retry-notice';
       notice.textContent = `⏳ 限流中，${(ev.retry_delay_ms/1000).toFixed(0)}s 后重试…`;
       msgs.insertBefore(notice, aiWrap);
-      setTimeout(() => notice.remove(), (ev.retry_delay_ms || 5000) + 500);
+      setTimeout(() => notice.remove(), (ev.retry_delay_ms||5000)+500);
     }
-
     if (ev.type === 'result') {
       aiBub.classList.remove('streaming');
+      // detect sticker response
+      const trimmed = fullText.trim();
+      if ([...trimmed].length <= 3 && /\p{Emoji}/u.test(trimmed)) {
+        aiBub.classList.add('sticker');
+      }
       const aiTime = now();
       const timeEl = document.createElement('div');
       timeEl.className = 'msg-time';
       timeEl.textContent = aiTime;
       aiContent.appendChild(timeEl);
-
-      history.push({ role:'ai', text: fullText, thinking: thinkingTxt || null, time: aiTime });
+      history.push({ role:'ai', text: fullText, thinking: thinkingTxt||null, time: aiTime });
       saveHistory();
       setStatus('idle');
       isGenerating = false;
@@ -684,12 +849,6 @@ async function sendMessage() {
     }
   }
 }
-
-// ── INPUT EVENTS ──────────────────────────────────────────────────────────────
-document.getElementById('send-btn').onclick = sendMessage;
-document.getElementById('input').addEventListener('keydown', e => {
-  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
-});
 
 // ── SERVICE WORKER + PUSH ─────────────────────────────────────────────────────
 function urlB64ToUint8(b64) {

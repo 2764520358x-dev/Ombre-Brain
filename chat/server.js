@@ -110,8 +110,9 @@ function auth(req, res, next) {
 // body: { chatId: string, text: string }
 // response: text/event-stream（SSE，每行 data: <JSON>\n\n）
 app.post('/api/chat', auth, (req, res) => {
-  const { chatId, text } = req.body || {};
-  if (!chatId || !text) return res.status(400).json({ error: 'chatId and text required' });
+  const { chatId, text, content } = req.body || {};
+  const msgContent = content || text;
+  if (!chatId || !msgContent) return res.status(400).json({ error: 'chatId and text/content required' });
 
   res.setHeader('Content-Type',     'text/event-stream');
   res.setHeader('Cache-Control',    'no-cache');
@@ -127,7 +128,7 @@ app.post('/api/chat', auth, (req, res) => {
   };
 
   proc._listeners.add(onEvent);
-  sendMsg(proc, text);
+  sendMsg(proc, msgContent);
 
   // 用 res.on('close') 而不是 req.on('close')：
   // POST body 读完后 req 会提前关闭，res 才代表 SSE 流的真实生命周期
