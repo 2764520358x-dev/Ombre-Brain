@@ -268,6 +268,18 @@ footer {
 }
 .bubble.sticker::before, .bubble.sticker::after { display: none !important; }
 
+/* AI voice play button */
+.bubble-play-btn {
+  border: none; background: rgba(0,0,0,0.07);
+  border-radius: 14px; padding: 4px 12px;
+  font-size: 13px; cursor: pointer; color: #555;
+  align-self: flex-start; margin-top: 2px;
+  -webkit-tap-highlight-color: transparent;
+  transition: background 0.15s;
+}
+.bubble-play-btn:active { background: rgba(0,0,0,0.13); }
+.bubble-play-btn.playing { background: #E8F8EE; color: #07C160; }
+
 /* Voice message bubble */
 .bubble.voice-msg {
   display: flex; align-items: center; gap: 8px;
@@ -1066,6 +1078,32 @@ async function streamAI(text, content, onComplete) {
       if ([...trimmed].length <= 3 && /\p{Emoji}/u.test(trimmed)) {
         aiBub.classList.add('sticker');
       }
+      // 语音播放按钮
+      if (fullText && !aiBub.classList.contains('sticker')) {
+        const playBtn = document.createElement('button');
+        playBtn.className = 'bubble-play-btn';
+        playBtn.textContent = '🔊 播放';
+        let btnPlaying = false;
+        playBtn.onclick = async () => {
+          if (btnPlaying) {
+            if (currentSource) { try { currentSource.stop(); } catch(e) {} currentSource = null; }
+            playBtn.textContent = '🔊 播放';
+            playBtn.classList.remove('playing');
+            btnPlaying = false;
+            return;
+          }
+          btnPlaying = true;
+          playBtn.textContent = '⏸ 停止';
+          playBtn.classList.add('playing');
+          await playTTS(fullText, () => {
+            playBtn.textContent = '🔊 播放';
+            playBtn.classList.remove('playing');
+            btnPlaying = false;
+          });
+        };
+        aiContent.appendChild(playBtn);
+      }
+
       const aiTime = now();
       const timeEl = document.createElement('div');
       timeEl.className = 'msg-time';
@@ -1092,9 +1130,9 @@ let callListening = false;
 let audioCtx = null;     // Web Audio API context（必须在用户手势里创建）
 let currentSource = null; // AudioBufferSourceNode
 
-// Azure TTS via Web Audio API（iOS 兼容）
-async function speak(text) {
-  if (!speakerOn || !text) return;
+// 底层 TTS 播放（Web Audio API，iOS 兼容）
+async function playTTS(text, onEnd) {
+  if (!text) return;
   if (currentSource) { try { currentSource.stop(); } catch(e) {} currentSource = null; }
   try {
     const res = await fetch(`${cfg.host}/api/tts`, {
@@ -1113,17 +1151,22 @@ async function speak(text) {
     const src = audioCtx.createBufferSource();
     src.buffer = audioBuf;
     src.connect(audioCtx.destination);
-    if (callActive) document.getElementById('call-status-txt').textContent = '回复中…';
-    src.onended = () => {
-      currentSource = null;
-      if (callActive && !isGenerating) startCallListening();
-    };
+    src.onended = () => { currentSource = null; if (onEnd) onEnd(); };
     src.start(0);
     currentSource = src;
   } catch (e) {
     console.error('[TTS]', e);
-    if (callActive && !isGenerating) startCallListening();
+    if (onEnd) onEnd();
   }
+}
+
+// 通话里的 TTS（播完后继续监听）
+async function speak(text) {
+  if (!speakerOn || !text) return;
+  if (callActive) document.getElementById('call-status-txt').textContent = '回复中…';
+  await playTTS(text, () => {
+    if (callActive && !isGenerating) startCallListening();
+  });
 }
 
 function startCallListening() {
