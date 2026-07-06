@@ -394,6 +394,7 @@ footer {
     </div>
     <div class="settings-divider"></div>
     <button class="auth-btn" id="cfg-save">保存</button>
+    <button class="auth-btn" id="push-btn" style="background:#4B6CB7">开启通知推送</button>
     <button class="danger-btn" id="new-session-btn">🔄 新会话（清除上下文）</button>
     <button class="danger-btn" id="clear-history-btn" style="background:#9B9B9B">🗑 清除本地聊天记录</button>
     <button class="settings-cancel" id="settings-close">取消</button>
@@ -721,11 +722,18 @@ async function subscribePush(reg) {
   }
 }
 
+let swReg = null;
 if ('serviceWorker' in navigator) {
   navigator.serviceWorker.register('/sw.js')
-    .then(reg => subscribePush(reg))
+    .then(reg => { swReg = reg; })
     .catch(() => {});
 }
+
+document.getElementById('push-btn').onclick = async () => {
+  if (!swReg) return alert('Service Worker 未就绪，请刷新页面');
+  await subscribePush(swReg);
+  alert('通知已开启！');
+};
 </script>
 </body>
 </html>
