@@ -52,20 +52,15 @@ function spawnCC(chatId) {
 
   // 按行解析 + 尾巴 buffer（chunk 边界可能切在 JSON 中间）
   proc.stdout.on('data', chunk => {
-    const raw = chunk.toString();
-    console.log(`[cc:${chatId}] stdout ${raw.length}b: ${raw.substring(0, 60).replace(/\n/g,'↵')}`);
-    proc._buf += raw;
+    proc._buf += chunk.toString();
     const lines = proc._buf.split('\n');
     proc._buf = lines.pop();
     for (const line of lines) {
       if (!line.trim()) continue;
       try {
         const ev = JSON.parse(line);
-        console.log(`[cc:${chatId}] event type=${ev.type} listeners=${proc._listeners.size}`);
         proc._listeners.forEach(fn => fn(ev));
-      } catch (e) {
-        console.log(`[cc:${chatId}] parse error: ${e.message} line=${line.substring(0,40)}`);
-      }
+      } catch { /* 忽略解析错误 */ }
     }
   });
 
@@ -116,7 +111,6 @@ app.post('/api/chat', auth, (req, res) => {
   };
 
   proc._listeners.add(onEvent);
-  console.log(`[chat] chatId=${chatId} listeners=${proc._listeners.size} sending message`);
   sendMsg(proc, text);
 
   // 用 res.on('close') 而不是 req.on('close')：
