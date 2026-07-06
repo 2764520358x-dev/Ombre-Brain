@@ -353,6 +353,38 @@ footer {
   font-size: 20px;
 }
 
+/* ── MINI CALL BAR ── */
+#mini-call-bar {
+  display: none;
+  position: fixed;
+  top: max(env(safe-area-inset-top,0px), 6px);
+  left: 50%; transform: translateX(-50%);
+  background: #1A8A45;
+  color: #fff;
+  padding: 7px 10px 7px 8px;
+  border-radius: 24px;
+  align-items: center;
+  gap: 8px;
+  z-index: 140;
+  cursor: pointer;
+  box-shadow: 0 3px 14px rgba(0,0,0,0.28);
+  min-width: 190px;
+  user-select: none;
+}
+#mini-call-bar.active { display: flex; }
+.mini-avatar {
+  width: 26px; height: 26px; border-radius: 50%;
+  background: #1A1A1A; flex-shrink: 0;
+}
+.mini-label { font-size: 13px; font-weight: 600; flex: 1; }
+.mini-timer-txt { font-size: 13px; font-variant-numeric: tabular-nums; opacity: 0.85; }
+.mini-end-btn {
+  width: 28px; height: 28px; border-radius: 50%;
+  background: #E74C3C; border: none; color: #fff;
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0; cursor: pointer;
+}
+
 /* ── AUTH SCREEN ── */
 #auth-screen {
   position: fixed; inset: 0;
@@ -473,8 +505,23 @@ footer {
   <div id="status-dot"></div>
 </header>
 
+<!-- MINI CALL BAR -->
+<div id="mini-call-bar" onclick="expandCall()">
+  <div class="mini-avatar"></div>
+  <span class="mini-label">阴影</span>
+  <span class="mini-timer-txt" id="mini-timer">00:00</span>
+  <button class="mini-end-btn" onclick="event.stopPropagation();closeCall()">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+      <path d="M6.6 10.8c1.4 2.8 3.8 5.1 6.6 6.6l2.2-2.2c.3-.3.7-.4 1-.2 1.1.4 2.3.6 3.6.6.6 0 1 .4 1 1V20c0 .6-.4 1-1 1-9.4 0-17-7.6-17-17 0-.6.4-1 1-1h3.5c.6 0 1 .4 1 1 0 1.3.2 2.5.6 3.6.1.3 0 .7-.2 1L6.6 10.8z"/>
+    </svg>
+  </button>
+</div>
+
 <!-- CALL SCREEN -->
 <div id="call-screen">
+  <button id="call-minimize" onclick="minimizeCall()" style="position:absolute;top:max(env(safe-area-inset-top,0px)+12px,20px);left:16px;width:36px;height:36px;border-radius:50%;border:none;background:rgba(255,255,255,0.15);color:#fff;display:flex;align-items:center;justify-content:center;cursor:pointer;">
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="6 9 12 15 18 9"/></svg>
+  </button>
   <div class="call-avatar-lg"></div>
   <div class="call-name">阴影</div>
   <div class="call-status" id="call-status-txt">正在连接…</div>
@@ -1029,7 +1076,19 @@ function updateCallTimer() {
   callSeconds++;
   const m = String(Math.floor(callSeconds/60)).padStart(2,'0');
   const s = String(callSeconds%60).padStart(2,'0');
-  document.getElementById('call-timer').textContent = `${m}:${s}`;
+  const t = `${m}:${s}`;
+  document.getElementById('call-timer').textContent = t;
+  document.getElementById('mini-timer').textContent = t;
+}
+
+function minimizeCall() {
+  document.getElementById('call-screen').classList.remove('active');
+  document.getElementById('mini-call-bar').classList.add('active');
+}
+
+function expandCall() {
+  document.getElementById('call-screen').classList.add('active');
+  document.getElementById('mini-call-bar').classList.remove('active');
 }
 
 function openCall() {
@@ -1091,7 +1150,9 @@ function closeCall() {
   if (recognition) { try { recognition.stop(); } catch(e) {} recognition = null; }
   if (currentAudio) { currentAudio.pause(); currentAudio = null; }
   document.getElementById('call-screen').classList.remove('active');
+  document.getElementById('mini-call-bar').classList.remove('active');
   document.getElementById('call-timer').textContent = '00:00';
+  document.getElementById('mini-timer').textContent = '00:00';
 }
 
 document.getElementById('call-btn').onclick = () => {

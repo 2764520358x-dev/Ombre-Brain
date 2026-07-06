@@ -177,7 +177,7 @@ app.post('/api/tts', auth, async (req, res) => {
   if (!AZURE_SPEECH_KEY) return res.status(503).json({ error: 'TTS not configured' });
 
   const escaped = text.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-  const ssml = `<speak version='1.0' xml:lang='zh-CN'><voice name='zh-CN-XiaoxiaoNeural'>${escaped}</voice></speak>`;
+  const ssml = `<speak version='1.0' xml:lang='zh-CN'><voice name='zh-CN-YunxiNeural'>${escaped}</voice></speak>`;
 
   try {
     const resp = await fetch(
