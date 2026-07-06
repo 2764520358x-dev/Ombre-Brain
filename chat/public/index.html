@@ -799,6 +799,9 @@ chatMicBtn.style.touchAction = 'none';
 async function startVoiceRecord(e) {
   e.preventDefault();
   if (isGenerating || isVoiceRecording) return;
+  // 同步解锁 AudioContext（iOS 限制：必须在用户手势里同步操作）
+  if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  audioCtx.resume();
   isVoiceRecording = true;
   voiceTranscript  = '';
   voiceStartTime   = Date.now();
@@ -1085,6 +1088,9 @@ async function streamAI(text, content, onComplete) {
         playBtn.textContent = '🔊 播放';
         let btnPlaying = false;
         playBtn.onclick = async () => {
+          // iOS 要求同步创建/恢复 AudioContext，不能等 fetch 回来再做
+          if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+          audioCtx.resume();
           if (btnPlaying) {
             if (currentSource) { try { currentSource.stop(); } catch(e) {} currentSource = null; }
             playBtn.textContent = '🔊 播放';
