@@ -1,0 +1,24 @@
+{
+  "name": "Ombre",
+  "short_name": "Ombre",
+  "description": "有记忆的 AI 伙伴",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#E7E2D8",
+  "theme_color": "#B85C3C",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 192 192'><rect width='192' height='192' rx='36' fill='%23FAF8F3'/><path d='M96 36 A60 60 0 0 0 96 156 Z' fill='%23B85C3C'/><path d='M96 36 A60 60 0 0 1 96 156 Z' fill='%23E8DFCC'/><g stroke='%23B85C3C' stroke-width='4' stroke-opacity='0.7' fill='none'><circle cx='96' cy='96' r='60'/><line x1='96' y1='96' x2='156' y2='96'/><line x1='96' y1='36' x2='96' y2='156'/></g></svg>",
+      "sizes": "192x192",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'><rect width='512' height='512' rx='96' fill='%23FAF8F3'/><path d='M256 96 A160 160 0 0 0 256 416 Z' fill='%23B85C3C'/><path d='M256 96 A160 160 0 0 1 256 416 Z' fill='%23E8DFCC'/><g stroke='%23B85C3C' stroke-width='10' stroke-opacity='0.7' fill='none'><circle cx='256' cy='256' r='160'/><line x1='256' y1='256' x2='416' y2='256'/><line x1='256' y1='96' x2='256' y2='416'/></g></svg>",
+      "sizes": "512x512",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
