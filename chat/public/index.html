@@ -306,6 +306,53 @@ footer {
 #send-btn:disabled { background: #C8C8C8; cursor: default; }
 #send-btn:not(:disabled):active { transform: scale(0.88); }
 
+/* ── CALL SCREEN ── */
+#call-screen {
+  position: fixed; inset: 0;
+  background: linear-gradient(180deg,#0D0D1A,#1A1A2E);
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  z-index: 150;
+  opacity: 0; pointer-events: none;
+  transition: opacity 0.3s;
+  gap: 12px;
+}
+#call-screen.active { opacity: 1; pointer-events: auto; }
+.call-avatar-lg {
+  width: 96px; height: 96px;
+  border-radius: 50%;
+  background: #1A1A1A;
+  border: 3px solid rgba(255,255,255,0.15);
+  margin-bottom: 8px;
+}
+.call-name { font-size: 26px; font-weight: 600; color: #fff; }
+.call-status { font-size: 14px; color: rgba(255,255,255,0.55); }
+.call-timer { font-size: 16px; color: rgba(255,255,255,0.7); margin-bottom: 40px; font-variant-numeric: tabular-nums; }
+.call-controls { display: flex; gap: 48px; align-items: center; }
+.call-mic-btn {
+  width: 68px; height: 68px; border-radius: 50%;
+  border: none; background: #2ECC71; color: #fff;
+  cursor: pointer; display: flex; align-items: center; justify-content: center;
+  transition: background 0.2s;
+}
+.call-mic-btn.listening { background: #E74C3C; animation: cpulse 1.2s ease infinite; }
+.call-mic-btn.disabled { background: #555; cursor: default; }
+@keyframes cpulse {
+  0%,100% { box-shadow: 0 0 0 0 rgba(231,76,60,0.5); }
+  60% { box-shadow: 0 0 0 18px rgba(231,76,60,0); }
+}
+.call-end-btn {
+  width: 68px; height: 68px; border-radius: 50%;
+  border: none; background: #E74C3C; color: #fff;
+  cursor: pointer; display: flex; align-items: center; justify-content: center;
+}
+.call-vol-btn {
+  width: 48px; height: 48px; border-radius: 50%;
+  border: none; background: rgba(255,255,255,0.12); color: rgba(255,255,255,0.8);
+  cursor: pointer; display: flex; align-items: center; justify-content: center;
+  font-size: 20px;
+}
+
 /* ── AUTH SCREEN ── */
 #auth-screen {
   position: fixed; inset: 0;
@@ -418,9 +465,35 @@ footer {
     <div class="contact-name">阴影</div>
     <div class="contact-status" id="status-label">待机</div>
   </div>
-  <div style="width:40px"></div>
+  <button class="hdr-btn" id="call-btn" title="语音通话">
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 12 19.79 19.79 0 0 1 1.61 3.4 2 2 0 0 1 3.6 1.22h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L7.91 8.78a16 16 0 0 0 6 6l.95-.95a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/>
+    </svg>
+  </button>
   <div id="status-dot"></div>
 </header>
+
+<!-- CALL SCREEN -->
+<div id="call-screen">
+  <div class="call-avatar-lg"></div>
+  <div class="call-name">阴影</div>
+  <div class="call-status" id="call-status-txt">正在连接…</div>
+  <div class="call-timer" id="call-timer">00:00</div>
+  <div class="call-controls">
+    <button class="call-vol-btn" id="call-vol" title="静音扬声器">🔊</button>
+    <button class="call-mic-btn" id="call-mic">
+      <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="9" y="2" width="6" height="11" rx="3"/>
+        <path d="M5 10a7 7 0 0 0 14 0M12 19v3M9 22h6"/>
+      </svg>
+    </button>
+    <button class="call-end-btn" id="call-end">
+      <svg width="26" height="26" viewBox="0 0 24 24" fill="currentColor">
+        <path d="M6.6 10.8c1.4 2.8 3.8 5.1 6.6 6.6l2.2-2.2c.3-.3.7-.4 1-.2 1.1.4 2.3.6 3.6.6.6 0 1 .4 1 1V20c0 .6-.4 1-1 1-9.4 0-17-7.6-17-17 0-.6.4-1 1-1h3.5c.6 0 1 .4 1 1 0 1.3.2 2.5.6 3.6.1.3 0 .7-.2 1L6.6 10.8z"/>
+      </svg>
+    </button>
+  </div>
+</div>
 
 <!-- MESSAGES -->
 <div id="messages"></div>
@@ -726,7 +799,7 @@ document.getElementById('photo-input').onchange = async (e) => {
 };
 
 // ── STREAM AI (shared) ────────────────────────────────────────────────────────
-async function streamAI(text, content) {
+async function streamAI(text, content, onComplete) {
   if (isGenerating) return;
   isGenerating = true;
   document.getElementById('send-btn').disabled = true;
@@ -846,9 +919,123 @@ async function streamAI(text, content) {
       setStatus('idle');
       isGenerating = false;
       document.getElementById('send-btn').disabled = false;
+      if (onComplete) onComplete(fullText);
     }
   }
 }
+
+// ── VOICE CALL ────────────────────────────────────────────────────────────────
+const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+let recognition = null;
+let callActive = false;
+let callTimerInterval = null;
+let callSeconds = 0;
+let speakerOn = true;
+let callListening = false;
+
+// TTS
+function speak(text) {
+  if (!speakerOn || !window.speechSynthesis || !text) return;
+  window.speechSynthesis.cancel();
+  const utt = new SpeechSynthesisUtterance(text);
+  utt.lang = 'zh-CN';
+  utt.rate = 1.05;
+  const voices = speechSynthesis.getVoices();
+  const zh = voices.find(v => v.lang.startsWith('zh'));
+  if (zh) utt.voice = zh;
+  utt.onend = () => {
+    if (callActive) startCallListening();
+  };
+  speechSynthesis.speak(utt);
+}
+
+function startCallListening() {
+  if (!recognition || callListening || isGenerating) return;
+  try {
+    recognition.start();
+  } catch(e) {}
+}
+
+function updateCallTimer() {
+  callSeconds++;
+  const m = String(Math.floor(callSeconds/60)).padStart(2,'0');
+  const s = String(callSeconds%60).padStart(2,'0');
+  document.getElementById('call-timer').textContent = `${m}:${s}`;
+}
+
+function openCall() {
+  callActive = true;
+  callSeconds = 0;
+  document.getElementById('call-screen').classList.add('active');
+  document.getElementById('call-status-txt').textContent = '通话中';
+  callTimerInterval = setInterval(updateCallTimer, 1000);
+
+  if (SpeechRecognition) {
+    recognition = new SpeechRecognition();
+    recognition.lang = 'zh-CN';
+    recognition.continuous = false;
+    recognition.interimResults = false;
+
+    recognition.onstart = () => {
+      callListening = true;
+      document.getElementById('call-mic').classList.add('listening');
+      document.getElementById('call-status-txt').textContent = '正在听…';
+    };
+    recognition.onend = () => {
+      callListening = false;
+      document.getElementById('call-mic').classList.remove('listening');
+      if (callActive && !isGenerating && !speechSynthesis.speaking) {
+        document.getElementById('call-status-txt').textContent = '通话中';
+      }
+    };
+    recognition.onresult = async (e) => {
+      const transcript = e.results[0][0].transcript.trim();
+      if (!transcript) return;
+      document.getElementById('call-status-txt').textContent = '思考中…';
+
+      // Show in chat too
+      const userTime = now();
+      appendMsg('user', transcript, null, userTime);
+      history.push({ role:'user', text: transcript, time: userTime });
+      saveHistory();
+
+      // Stream AI and speak response
+      await streamAI(transcript, null, (fullText) => {
+        speak(fullText);
+      });
+    };
+    recognition.onerror = () => {
+      callListening = false;
+      document.getElementById('call-mic').classList.remove('listening');
+    };
+
+    // Auto-start listening
+    setTimeout(() => startCallListening(), 500);
+  } else {
+    document.getElementById('call-status-txt').textContent = '浏览器不支持语音识别';
+  }
+}
+
+function closeCall() {
+  callActive = false;
+  clearInterval(callTimerInterval);
+  if (recognition) { try { recognition.stop(); } catch(e) {} recognition = null; }
+  if (window.speechSynthesis) speechSynthesis.cancel();
+  document.getElementById('call-screen').classList.remove('active');
+  document.getElementById('call-timer').textContent = '00:00';
+}
+
+document.getElementById('call-btn').onclick = openCall;
+document.getElementById('call-end').onclick = closeCall;
+document.getElementById('call-mic').onclick = () => {
+  if (callListening) { try { recognition.stop(); } catch(e) {} }
+  else startCallListening();
+};
+document.getElementById('call-vol').onclick = () => {
+  speakerOn = !speakerOn;
+  document.getElementById('call-vol').textContent = speakerOn ? '🔊' : '🔇';
+  if (!speakerOn) speechSynthesis.cancel();
+};
 
 // ── SERVICE WORKER + PUSH ─────────────────────────────────────────────────────
 function urlB64ToUint8(b64) {
