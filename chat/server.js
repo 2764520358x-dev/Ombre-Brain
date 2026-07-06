@@ -33,7 +33,8 @@ function spawnCC(chatId) {
     '--verbose',                        // 必须：不带则只有 result 事件
     '--include-partial-messages',       // token 级 delta（打字机 + thinking）
     '--model', MODEL,
-    '--dangerously-skip-permissions',   // 自建自用；生产见 §9
+    '--permission-mode', 'acceptEdits',  // root 下不能用 dangerously-skip-permissions
+    '--allowedTools', 'mcp__ombre-brain__breath,mcp__ombre-brain__hold,mcp__ombre-brain__grow,mcp__ombre-brain__trace,mcp__ombre-brain__search,mcp__ombre-brain__dream,mcp__ombre-brain__watch_health',
     '--thinking-display', 'summarized', // 隐藏 flag，4.7+ 默认 omitted 需手动开
   ];
 
