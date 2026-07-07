@@ -1488,29 +1488,56 @@ async function streamAI(text, content, onComplete) {
         aiWrap.remove();
         parts.forEach((part, i) => {
           setTimeout(() => {
+            const isVoicePart = part.startsWith('[voice]');
+            const displayText = isVoicePart ? part.slice(7).trim() : part;
             const w = document.createElement('div');
             w.className = 'msg ai';
             const av = document.createElement('div'); av.className = 'ai-avatar'; w.appendChild(av);
             const c = document.createElement('div'); c.className = 'msg-content'; w.appendChild(c);
-            const b = document.createElement('div'); b.className = 'bubble'; b.textContent = part; c.appendChild(b);
-            const pBtn = document.createElement('button');
-            pBtn.className = 'bubble-play-btn'; pBtn.textContent = '🔊 播放';
-            let pPlaying = false;
-            pBtn.onclick = async () => {
-              if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-              audioCtx.resume();
-              if (pPlaying) {
-                if (currentSource) { try { currentSource.stop(); } catch(e){} currentSource = null; }
-                pBtn.textContent = '🔊 播放'; pBtn.classList.remove('playing'); pPlaying = false; return;
-              }
-              pPlaying = true; pBtn.textContent = '⏸ 停止'; pBtn.classList.add('playing');
-              await playTTS(part, () => { pBtn.textContent = '🔊 播放'; pBtn.classList.remove('playing'); pPlaying = false; });
-            };
-            c.appendChild(pBtn);
             const t = now();
-            const tEl = document.createElement('div'); tEl.className = 'msg-time'; tEl.textContent = t; c.appendChild(tEl);
-            msgs.appendChild(w); msgs.scrollTop = msgs.scrollHeight;
-            addLongPress(b, part);
+            if (isVoicePart) {
+              const b = document.createElement('div');
+              b.className = 'bubble voice-msg';
+              const dur = document.createElement('span'); dur.className = 'voice-dur'; dur.textContent = '🎤';
+              const bars = document.createElement('span'); bars.className = 'voice-bars'; bars.textContent = '▌▍▌▎▍▌▍▌';
+              b.appendChild(dur); b.appendChild(bars);
+              b.style.cursor = 'pointer';
+              let vPlaying = false;
+              const playVoicePart = async () => {
+                if (vPlaying) return;
+                vPlaying = true; bars.style.color = 'var(--accent)';
+                await playTTS(displayText, () => { vPlaying = false; bars.style.color = ''; });
+              };
+              b.onclick = () => {
+                if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                audioCtx.resume();
+                playVoicePart();
+              };
+              c.appendChild(b);
+              const tEl = document.createElement('div'); tEl.className = 'msg-time'; tEl.textContent = t; c.appendChild(tEl);
+              msgs.appendChild(w); msgs.scrollTop = msgs.scrollHeight;
+              addLongPress(b, displayText);
+              setTimeout(() => b.onclick(), 300);
+            } else {
+              const b = document.createElement('div'); b.className = 'bubble'; b.textContent = displayText; c.appendChild(b);
+              const pBtn = document.createElement('button');
+              pBtn.className = 'bubble-play-btn'; pBtn.textContent = '🔊 播放';
+              let pPlaying = false;
+              pBtn.onclick = async () => {
+                if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                audioCtx.resume();
+                if (pPlaying) {
+                  if (currentSource) { try { currentSource.stop(); } catch(e){} currentSource = null; }
+                  pBtn.textContent = '🔊 播放'; pBtn.classList.remove('playing'); pPlaying = false; return;
+                }
+                pPlaying = true; pBtn.textContent = '⏸ 停止'; pBtn.classList.add('playing');
+                await playTTS(displayText, () => { pBtn.textContent = '🔊 播放'; pBtn.classList.remove('playing'); pPlaying = false; });
+              };
+              c.appendChild(pBtn);
+              const tEl = document.createElement('div'); tEl.className = 'msg-time'; tEl.textContent = t; c.appendChild(tEl);
+              msgs.appendChild(w); msgs.scrollTop = msgs.scrollHeight;
+              addLongPress(b, displayText);
+            }
             if (i === parts.length - 1) {
               detectSongRequest(trimmed);
               history.push({ role:'ai', text: trimmed, thinking: thinkingTxt||null, time: t });
