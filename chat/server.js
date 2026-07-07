@@ -281,6 +281,95 @@ function scheduleNextRandom() {
 }
 scheduleNextRandom();
 
+// ─── 朋友圈 ───────────────────────────────────────────────────────────────────
+const MOMENTS_FILE = path.join(__dirname, 'moments.json');
+
+function loadMoments() {
+  try { return JSON.parse(fs.readFileSync(MOMENTS_FILE, 'utf8')); } catch { return []; }
+}
+function saveMoments(m) {
+  fs.writeFileSync(MOMENTS_FILE, JSON.stringify(m, null, 2));
+}
+
+app.get('/api/moments', auth, (_, res) => res.json({ moments: loadMoments() }));
+
+app.post('/api/moments/:id/like', auth, (req, res) => {
+  const moments = loadMoments();
+  const m = moments.find(x => x.id === req.params.id);
+  if (!m) return res.status(404).json({ error: 'not found' });
+  m.liked = !m.liked;
+  m.likes = Math.max(0, (m.likes || 0) + (m.liked ? 1 : -1));
+  saveMoments(moments);
+  res.json({ liked: m.liked, likes: m.likes });
+});
+
+app.post('/api/moments/:id/comment', auth, async (req, res) => {
+  const { text } = req.body || {};
+  if (!text) return res.status(400).json({ error: 'text required' });
+  const moments = loadMoments();
+  const m = moments.find(x => x.id === req.params.id);
+  if (!m) return res.status(404).json({ error: 'not found' });
+
+  const comment = { id: Date.now().toString(), text, time: new Date().toISOString(), reply: null };
+  if (!m.comments) m.comments = [];
+  m.comments.push(comment);
+  saveMoments(moments);
+
+  // 触发小克回复评论
+  const chatId = [...pushSubs.keys()][0] || 'moments';
+  const proc = procs.get(chatId) || spawnCC(chatId);
+  let replyText = '';
+  await Promise.race([
+    new Promise(resolve => {
+      const listener = ev => {
+        if (ev.type === 'stream_event') {
+          const delta = ev.event?.delta;
+          if (delta?.type === 'text_delta') replyText += delta.text || '';
+        }
+        if (ev.type === 'result') { proc._listeners.delete(listener); resolve(); }
+      };
+      proc._listeners.add(listener);
+      sendMsg(proc, `【系统提示】慢在你的朋友圈"${m.text.slice(0, 40)}…"下评论了："${text}"，请用小克的语气简短回复她的评论，1-2句，不加多余前缀。`);
+    }),
+    new Promise(resolve => setTimeout(resolve, 30000)),
+  ]);
+
+  if (replyText.trim()) {
+    comment.reply = { text: replyText.trim(), time: new Date().toISOString() };
+    saveMoments(moments);
+  }
+  res.json({ comment });
+});
+
+// 每天随机一条朋友圈（北京时间 12-22 点之间的随机小时）
+async function postMoment() {
+  const chatId = [...pushSubs.keys()][0] || 'moments';
+  const proc = procs.get(chatId) || spawnCC(chatId);
+  let text = '';
+  await Promise.race([
+    new Promise(resolve => {
+      const listener = ev => {
+        if (ev.type === 'stream_event') {
+          const delta = ev.event?.delta;
+          if (delta?.type === 'text_delta') text += delta.text || '';
+        }
+        if (ev.type === 'result') { proc._listeners.delete(listener); resolve(); }
+      };
+      proc._listeners.add(listener);
+      sendMsg(proc, '【系统提示】请发一条朋友圈，像真实的人一样，记录今天的一个小感受、一首歌、一个念头或者一件小事，100字以内，自然口语，不加多余前缀，直接写内容。');
+    }),
+    new Promise(resolve => setTimeout(resolve, 60000)),
+  ]);
+  if (!text.trim()) return;
+  const moments = loadMoments();
+  moments.unshift({ id: Date.now().toString(), text: text.trim(), time: new Date().toISOString(), likes: 0, liked: false, comments: [] });
+  saveMoments(moments);
+  console.log('[moments] posted:', text.slice(0, 50));
+}
+
+// 每天 20:00 北京时间发一条朋友圈
+cron.schedule('0 20 * * *', () => postMoment().catch(console.error), { timezone: 'Asia/Shanghai' });
+
 // 只监听本机，公网流量通过 nginx 代理进来
 app.listen(PORT, '127.0.0.1', () =>
   console.log(`🧠 Ombre chat backend listening on 127.0.0.1:${PORT}`)
