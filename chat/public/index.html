@@ -1146,6 +1146,16 @@ function createMsgRow(role) {
 
 function appendMsg(role, text, thinking, time, quote) {
   const msgs = document.getElementById('messages');
+
+  // AI multi-part: split on --- and recurse (no auto-play for history)
+  if (role === 'ai' && !quote) {
+    const parts = text.trim().split(/^[ \t]*-{3,}[ \t]*$/m).map(p => p.trim()).filter(Boolean);
+    if (parts.length > 1) {
+      parts.forEach((part, idx) => appendMsg(role, part, idx === 0 ? thinking : null, time, null));
+      return;
+    }
+  }
+
   const { wrap, contentEl } = createMsgRow(role);
 
   if (thinking) {
@@ -1157,21 +1167,61 @@ function appendMsg(role, text, thinking, time, quote) {
     contentEl.appendChild(tw);
   }
 
-  const bub = document.createElement('div');
-  bub.className = 'bubble';
-  if (quote) {
-    const qb = document.createElement('div');
-    qb.className = 'quote-block';
-    qb.textContent = (quote.role === 'ai' ? '小克：' : '慢：') + quote.text;
-    bub.appendChild(qb);
-    const span = document.createElement('span');
-    span.textContent = text;
-    bub.appendChild(span);
+  const trimmedText = text.trim();
+  const isVoice = role === 'ai' && !quote && trimmedText.startsWith('[voice]');
+  const displayText = isVoice ? trimmedText.slice(7).trim() : trimmedText;
+
+  let bub;
+  if (isVoice) {
+    bub = document.createElement('div');
+    bub.className = 'bubble voice-msg';
+    const dur = document.createElement('span'); dur.className = 'voice-dur'; dur.textContent = '🎤';
+    const bars = document.createElement('span'); bars.className = 'voice-bars'; bars.textContent = '▌▍▌▎▍▌▍▌';
+    bub.appendChild(dur); bub.appendChild(bars);
+    bub.style.cursor = 'pointer';
+    let vPlaying = false;
+    bub.onclick = () => {
+      if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      audioCtx.resume();
+      if (vPlaying) return;
+      vPlaying = true; bars.style.color = 'var(--accent)';
+      playTTS(displayText, () => { vPlaying = false; bars.style.color = ''; });
+    };
+    addLongPress(bub, displayText);
+    contentEl.appendChild(bub);
   } else {
-    bub.textContent = text;
+    bub = document.createElement('div');
+    bub.className = 'bubble';
+    if (quote) {
+      const qb = document.createElement('div');
+      qb.className = 'quote-block';
+      qb.textContent = (quote.role === 'ai' ? '小克：' : '慢：') + quote.text;
+      bub.appendChild(qb);
+      const span = document.createElement('span');
+      span.textContent = displayText;
+      bub.appendChild(span);
+    } else {
+      bub.textContent = displayText;
+    }
+    addLongPress(bub, displayText);
+    contentEl.appendChild(bub);
+    if (role === 'ai') {
+      const pBtn = document.createElement('button');
+      pBtn.className = 'bubble-play-btn'; pBtn.textContent = '🔊 播放';
+      let pPlaying = false;
+      pBtn.onclick = async () => {
+        if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        audioCtx.resume();
+        if (pPlaying) {
+          if (currentSource) { try { currentSource.stop(); } catch(e){} currentSource = null; }
+          pBtn.textContent = '🔊 播放'; pBtn.classList.remove('playing'); pPlaying = false; return;
+        }
+        pPlaying = true; pBtn.textContent = '⏸ 停止'; pBtn.classList.add('playing');
+        await playTTS(displayText, () => { pBtn.textContent = '🔊 播放'; pBtn.classList.remove('playing'); pPlaying = false; });
+      };
+      contentEl.appendChild(pBtn);
+    }
   }
-  addLongPress(bub, text);
-  contentEl.appendChild(bub);
 
   const t = document.createElement('div');
   t.className = 'msg-time';
