@@ -1308,15 +1308,16 @@ let isVoiceRecording = false;
 const chatMicBtn = document.getElementById('chat-mic-btn');
 chatMicBtn.style.touchAction = 'none';
 
+let voiceRecordingReady = false;
+
 async function startVoiceRecord(e) {
   e.preventDefault();
   if (isGenerating || isVoiceRecording) return;
-  // 同步解锁 AudioContext（iOS 限制：必须在用户手势里同步操作）
   if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
   audioCtx.resume();
-  isVoiceRecording = true;
-  voiceTranscript  = '';
-  voiceStartTime   = Date.now();
+  isVoiceRecording    = true;
+  voiceRecordingReady = false;
+  voiceTranscript     = '';
   chatMicBtn.style.background = '#E74C3C';
   chatMicBtn.style.color = '#fff';
   document.getElementById('input').placeholder = '录音中… 松开发送';
@@ -1336,9 +1337,22 @@ async function startVoiceRecord(e) {
 
   try {
     const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    if (!isVoiceRecording) {
+      // user already released before permission granted — abort
+      stream.getTracks().forEach(t => t.stop());
+      return;
+    }
     voiceRecorder = new MediaRecorder(stream);
     voiceRecorder.start();
-  } catch(err) { voiceRecorder = null; }
+    voiceStartTime      = Date.now();
+    voiceRecordingReady = true;
+  } catch(err) {
+    isVoiceRecording = false;
+    voiceRecorder    = null;
+    chatMicBtn.style.background = '';
+    chatMicBtn.style.color = '';
+    document.getElementById('input').placeholder = '发消息…';
+  }
 }
 
 function stopVoiceRecord() {
@@ -1348,7 +1362,22 @@ function stopVoiceRecord() {
   chatMicBtn.style.color = '';
   document.getElementById('input').placeholder = '发消息…';
 
-  const duration = Math.max(1, Math.round((Date.now() - voiceStartTime) / 1000));
+  if (!voiceRecordingReady) {
+    // getUserMedia hasn't resolved yet — just abort
+    voiceRecorder = null;
+    if (chatRecognition) { try { chatRecognition.stop(); } catch {} chatRecognition = null; }
+    return;
+  }
+
+  const elapsed  = Date.now() - voiceStartTime;
+  const duration = Math.max(1, Math.round(elapsed / 1000));
+
+  if (elapsed < 500) {
+    // too short — discard
+    if (voiceRecorder) { try { voiceRecorder.stream?.getTracks().forEach(t => t.stop()); } catch {} voiceRecorder = null; }
+    if (chatRecognition) { try { chatRecognition.stop(); } catch {} chatRecognition = null; }
+    return;
+  }
 
   if (voiceRecorder) {
     try { voiceRecorder.stream?.getTracks().forEach(t => t.stop()); } catch(err) {}
@@ -1388,10 +1417,15 @@ function sendVoiceMsg(duration, transcript) {
   streamAI(transcript ? `[语音："${transcript}"]` : '[用户发来一条语音消息]');
 }
 
-chatMicBtn.addEventListener('pointerdown',  startVoiceRecord);
-chatMicBtn.addEventListener('pointerup',    stopVoiceRecord);
+chatMicBtn.addEventListener('pointerdown',   startVoiceRecord);
+chatMicBtn.addEventListener('pointerup',     stopVoiceRecord);
 chatMicBtn.addEventListener('pointercancel', stopVoiceRecord);
-chatMicBtn.addEventListener('pointerleave', stopVoiceRecord);
+// pointerleave removed — causes premature stop on slight finger movement
+
+// Pre-warm mic permission so getUserMedia resolves instantly on first hold
+navigator.mediaDevices?.getUserMedia({ audio: true })
+  .then(s => s.getTracks().forEach(t => t.stop()))
+  .catch(() => {});
 
 
 // ── PHOTO BUTTON ──────────────────────────────────────────────────────────────
