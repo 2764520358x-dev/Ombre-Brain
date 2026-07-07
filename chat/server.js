@@ -42,6 +42,7 @@ webpush.setVapidDetails('mailto:2764520358x@gmail.com', vapidKeys.publicKey, vap
 
 const pushSubs    = new Map(); // chatId -> PushSubscription
 const pendingMsgs = new Map(); // chatId -> [{text, time}]  主动消息待读队列
+let registeredChatId = null;   // 最近活跃的 chatId（不依赖推送订阅）
 
 // ─── spawn ────────────────────────────────────────────────────────────────────
 function spawnCC(chatId) {
@@ -146,6 +147,14 @@ app.delete('/api/session/:id', auth, (req, res) => {
   res.json({ ok: true });
 });
 
+// ─── POST /api/register ──────────────────────────────────────────────────────
+// 前端启动时注册 chatId，让服务器知道去哪发主动消息
+app.post('/api/register', auth, (req, res) => {
+  const { chatId } = req.body || {};
+  if (chatId) { registeredChatId = chatId; }
+  res.json({ ok: true });
+});
+
 // ─── GET /api/push/key ────────────────────────────────────────────────────────
 app.get('/api/push/key', (_, res) => res.json({ key: vapidKeys.publicKey }));
 
@@ -220,8 +229,8 @@ app.get('/api/health', (_, res) =>
 
 // ─── 主动消息 ─────────────────────────────────────────────────────────────────
 async function sendProactiveMessage(prompt) {
-  if (pushSubs.size === 0) { console.log('[proactive] no push subscribers'); return; }
-  const chatId = [...pushSubs.keys()][0];
+  const chatId = [...pushSubs.keys()][0] || registeredChatId;
+  if (!chatId) { console.log('[proactive] no chatId registered'); return; }
   const proc = procs.get(chatId) || spawnCC(chatId);
 
   let fullText = '';

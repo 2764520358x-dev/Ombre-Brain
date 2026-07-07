@@ -1051,7 +1051,12 @@ function setStatus(s) {
   const dot   = document.getElementById('status-dot');
   const label = document.getElementById('status-label');
   dot.className = 'status-dot ' + (s === 'idle' ? '' : s);
-  label.textContent = { idle:'待机', active:'连接中…', thinking:'思考中…', error:'出错了' }[s] || s;
+  label.dataset.status = s;
+  if (s !== 'idle') {
+    label.textContent = { active:'连接中…', thinking:'思考中…', error:'出错了' }[s] || s;
+  } else {
+    updateIdleStatus();
+  }
 }
 function now() {
   return new Date().toLocaleTimeString('zh-CN', { hour:'2-digit', minute:'2-digit' });
@@ -1171,6 +1176,7 @@ async function sendMessage() {
   const input = document.getElementById('input');
   const text  = input.value.trim();
   if (!text || isGenerating) return;
+  lastMsgTime = Date.now();
   input.value = '';
   input.style.height = '';
   const quote = activeQuote;
@@ -1741,12 +1747,40 @@ async function fetchPending() {
   } catch(e) {}
 }
 
+// 注册 chatId 到服务器（让主动消息不依赖推送订阅）
+async function registerSession() {
+  try {
+    await fetch(`${cfg.host}/api/register`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...(cfg.secret ? { Authorization: `Bearer ${cfg.secret}` } : {}) },
+      body: JSON.stringify({ chatId }),
+    });
+  } catch(e) {}
+}
+registerSession();
+
 // 页面加载时拉一次
 fetchPending();
-// 从后台切回前台时再拉一次（点推送通知打开 app 的场景）
+// 从后台切回前台时再拉一次
 document.addEventListener('visibilitychange', () => {
-  if (!document.hidden) fetchPending();
+  if (!document.hidden) { registerSession(); fetchPending(); }
 });
+
+// ── 动态状态文字 ──────────────────────────────────────────────────────────────
+const statusLabel = document.getElementById('status-label');
+let lastMsgTime = Date.now();
+
+function updateIdleStatus() {
+  const idle = Date.now() - lastMsgTime;
+  const h = new Date().getHours();
+  let txt;
+  if (idle < 2 * 60 * 1000) txt = '在陪你';
+  else if (h >= 23 || h < 6) txt = '她该睡了';
+  else txt = '在等你回来';
+  if (statusLabel.dataset.status === 'idle') statusLabel.textContent = txt;
+}
+setInterval(updateIdleStatus, 30000);
+
 
 // ── 音乐 ──────────────────────────────────────────────────────────────────────
 const musicPanel = document.getElementById('music-panel');
