@@ -876,9 +876,6 @@ footer {
 
 <!-- INPUT -->
 <footer>
-  <div id="sticker-panel">
-    <div class="sticker-grid" id="sticker-grid"></div>
-  </div>
   <div id="music-bar">
     <div class="music-bar-icon" id="music-bar-icon">♪</div>
     <div class="music-bar-info">
@@ -912,7 +909,6 @@ footer {
         <path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/>
       </svg>
     </button>
-    <button class="footer-icon-btn" id="sticker-btn" title="贴纸">🐱</button>
     <textarea id="input" placeholder="发消息…" rows="1"></textarea>
     <button id="send-btn">
       <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
@@ -1290,48 +1286,6 @@ chatMicBtn.addEventListener('pointerup',    stopVoiceRecord);
 chatMicBtn.addEventListener('pointercancel', stopVoiceRecord);
 chatMicBtn.addEventListener('pointerleave', stopVoiceRecord);
 
-// ── STICKER PANEL ─────────────────────────────────────────────────────────────
-const STICKERS = ['😺','😸','😹','😻','😼','😽','🙀','😿','😾','🐱','🐈','🐾',
-                  '💕','🎀','✨','🥺','💤','🌙','☀️','🍵','🐟','🧸','💭','🤍'];
-const stickerGrid = document.getElementById('sticker-grid');
-STICKERS.forEach(s => {
-  const el = document.createElement('div');
-  el.className = 'sticker-item';
-  el.textContent = s;
-  el.onclick = () => {
-    sendSticker(s);
-    document.getElementById('sticker-panel').classList.remove('open');
-  };
-  stickerGrid.appendChild(el);
-});
-
-document.getElementById('sticker-btn').onclick = () => {
-  document.getElementById('sticker-panel').classList.toggle('open');
-};
-
-function sendSticker(emoji) {
-  if (isGenerating) return;
-  const msgs = document.getElementById('messages');
-
-  // Show sticker bubble
-  const { contentEl } = createMsgRow('user');
-  const bub = document.createElement('div');
-  bub.className = 'bubble sticker';
-  bub.textContent = emoji;
-  contentEl.appendChild(bub);
-  const t = document.createElement('div');
-  t.className = 'msg-time';
-  t.textContent = now();
-  contentEl.appendChild(t);
-  msgs.scrollTop = msgs.scrollHeight;
-
-  const userTime = now();
-  history.push({ role:'user', text: emoji, time: userTime });
-  saveHistory();
-
-  // Send to AI and stream response
-  streamAI(emoji);
-}
 
 // ── PHOTO BUTTON ──────────────────────────────────────────────────────────────
 document.getElementById('photo-btn').onclick = () => {
