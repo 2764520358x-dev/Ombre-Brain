@@ -2031,29 +2031,61 @@ async function playTTS(text, onEnd) {
   }
 }
 
-// 通话专用：TTS 排队播放（半双工），播完自动恢复监听
+// TTS 预取：只下载解码，不播放（用于提前准备）
+async function fetchTTSBuf(text) {
+  const res = await fetch(`${cfg.host}/api/tts`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...(cfg.secret ? { Authorization: `Bearer ${cfg.secret}` } : {}) },
+    body: JSON.stringify({ text }),
+  });
+  if (!res.ok) throw new Error(`TTS ${res.status}`);
+  if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  if (audioCtx.state === 'suspended') await audioCtx.resume();
+  return audioCtx.decodeAudioData(await res.arrayBuffer());
+}
+
+// 播放已解码的 AudioBuffer，返回 Promise 在结束时 resolve
+function playAudioBuf(audioBuf) {
+  return new Promise(resolve => {
+    if (currentSource) { try { currentSource.stop(); } catch(e) {} currentSource = null; }
+    const src = audioCtx.createBufferSource();
+    src.buffer = audioBuf;
+    src.connect(audioCtx.destination);
+    const safety = setTimeout(() => { currentSource = null; resolve(); }, audioBuf.duration * 1000 + 3000);
+    src.onended = () => { clearTimeout(safety); currentSource = null; resolve(); };
+    src.start(0);
+    currentSource = src;
+  });
+}
+
+// 通话专用：句子入队时立刻开始预取，播放时音频大概率已 ready，衔接无缝
 function callSpeak(rawText) {
   if (!callActive || !speakerOn || !rawText) return;
-  // 拆分 --- 多段，去掉 [voice] 前缀
   const parts = rawText.split(/^[ \t]*-{3,}[ \t]*$/m)
     .map(p => p.trim()).filter(Boolean)
     .map(p => p.startsWith('[voice]') ? p.slice(7).trim() : p);
-  for (const p of parts) if (p) speakQueue.push(p);
+  for (const p of parts) {
+    if (p) speakQueue.push({ text: p, ready: fetchTTSBuf(p) }); // 立刻预取
+  }
   if (!speakBusy) drainSpeakQueue();
 }
 
 async function drainSpeakQueue() {
   if (speakBusy) return;
   speakBusy = true;
-  // 半双工：说话时关麦，防止 AI 声音被重新识别
+  // 半双工：关麦防回声
   clearTimeout(recognitionRestartTimer);
   if (recognition && callListening) { try { recognition.stop(); } catch(e) {} }
 
   while (speakQueue.length && callActive) {
-    const text = speakQueue.shift();
+    const { text, ready } = speakQueue.shift();
     const preview = text.length > 18 ? text.slice(0, 18) + '…' : text;
     document.getElementById('call-status-txt').textContent = preview;
-    await new Promise(resolve => playTTS(text, resolve));
+    try {
+      const audioBuf = await ready; // 大概率已下载完，几乎零等待
+      if (!callActive) break;
+      await playAudioBuf(audioBuf);
+    } catch(e) { console.error('[callSpeak]', e); }
   }
 
   speakBusy = false;
