@@ -60,7 +60,6 @@ function spawnCC(chatId) {
     '--model', MODEL,
     '--permission-mode', 'dontAsk',      // 非交互模式：未授权的工具调用直接拒绝不挂起
     '--allowedTools', 'mcp__ombre-brain__breath,mcp__ombre-brain__hold,mcp__ombre-brain__grow,mcp__ombre-brain__trace,mcp__ombre-brain__search,mcp__ombre-brain__dream,mcp__ombre-brain__watch_health',
-    '--thinking-display', 'omitted',
   ];
 
   if (fs.existsSync(MCP_CONFIG))  args.push('--mcp-config', MCP_CONFIG, '--strict-mcp-config');
@@ -84,6 +83,11 @@ function spawnCC(chatId) {
       if (!line.trim()) continue;
       try {
         const ev = JSON.parse(line);
+        // 过滤思考内容，永远不发给客户端
+        if (ev.type === 'stream_event') {
+          const delta = ev.event?.delta;
+          if (delta?.type === 'thinking_delta' || delta?.type === 'input_json_delta') continue;
+        }
         proc._listeners.forEach(fn => fn(ev));
       } catch { /* 忽略解析错误 */ }
     }
