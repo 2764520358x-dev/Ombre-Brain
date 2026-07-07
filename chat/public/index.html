@@ -1326,6 +1326,32 @@ document.getElementById('push-btn').onclick = async () => {
   await subscribePush(swReg);
   alert('通知已开启！');
 };
+
+// ── 拉取主动消息（打开聊天 / 切回前台时）────────────────────────────────────
+async function fetchPending() {
+  if (!cfg.secret && !cfg.host) return;
+  try {
+    const res = await fetch(`${cfg.host}/api/pending/${chatId}`, {
+      headers: cfg.secret ? { Authorization: `Bearer ${cfg.secret}` } : {},
+    });
+    if (!res.ok) return;
+    const { messages } = await res.json();
+    if (!messages.length) return;
+    messages.forEach(m => {
+      const t = new Date(m.time).toLocaleTimeString('zh-CN', { hour:'2-digit', minute:'2-digit' });
+      appendMsg('ai', m.text, null, t);
+      history.push({ role:'ai', text: m.text, time: t });
+    });
+    saveHistory();
+  } catch(e) {}
+}
+
+// 页面加载时拉一次
+fetchPending();
+// 从后台切回前台时再拉一次（点推送通知打开 app 的场景）
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden) fetchPending();
+});
 </script>
 </body>
 </html>

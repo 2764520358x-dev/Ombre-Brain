@@ -40,7 +40,8 @@ if (fs.existsSync(VAPID_FILE)) {
 }
 webpush.setVapidDetails('mailto:2764520358x@gmail.com', vapidKeys.publicKey, vapidKeys.privateKey);
 
-const pushSubs = new Map(); // chatId -> PushSubscription
+const pushSubs    = new Map(); // chatId -> PushSubscription
+const pendingMsgs = new Map(); // chatId -> [{text, time}]  主动消息待读队列
 
 // ─── spawn ────────────────────────────────────────────────────────────────────
 function spawnCC(chatId) {
@@ -204,6 +205,14 @@ app.post('/api/tts', auth, async (req, res) => {
   }
 });
 
+// ─── GET /api/pending/:chatId ─────────────────────────────────────────────────
+// 返回并清空主动消息待读队列
+app.get('/api/pending/:chatId', auth, (req, res) => {
+  const msgs = pendingMsgs.get(req.params.chatId) || [];
+  pendingMsgs.delete(req.params.chatId);
+  res.json({ messages: msgs });
+});
+
 // ─── GET /api/health ─────────────────────────────────────────────────────────
 app.get('/api/health', (_, res) =>
   res.json({ ok: true, sessions: procs.size, push: pushSubs.size, uptime: Math.floor(process.uptime()) })
@@ -232,7 +241,13 @@ async function sendProactiveMessage(prompt) {
   ]);
 
   if (!fullText) return;
+
+  // 存入待读队列，用户打开聊天时会拉取显示
+  if (!pendingMsgs.has(chatId)) pendingMsgs.set(chatId, []);
+  pendingMsgs.get(chatId).push({ text: fullText, time: new Date().toISOString() });
+
   const sub = pushSubs.get(chatId);
+  if (!sub) return;
   try {
     await webpush.sendNotification(sub, JSON.stringify({
       title: 'Ombre · 阴影',
