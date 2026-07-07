@@ -115,6 +115,14 @@ function auth(req, res, next) {
   res.status(401).json({ error: 'unauthorized' });
 }
 
+// ─── index.html 永不缓存 ─────────────────────────────────────────────────────
+app.get('/', (req, res) => {
+  res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+  res.setHeader('Pragma', 'no-cache');
+  res.setHeader('Expires', '0');
+  res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
+
 // ─── 上下文压缩 ───────────────────────────────────────────────────────────────
 async function compressContext(chatId) {
   if (compressing.has(chatId)) return;
