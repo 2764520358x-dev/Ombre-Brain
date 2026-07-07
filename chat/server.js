@@ -35,6 +35,20 @@ const recentMsgs = new Map();   // chatId -> [{role, text}]  最近几条原文
 const MSG_COMPRESS_THRESHOLD = 30;
 const RECENT_KEEP = 6;          // 压缩时保留最近几条原文
 
+// 情绪状态
+const lastMsgTime = new Map();  // chatId -> timestamp（慢最后发消息的时间）
+
+function getMoodTag(chatId) {
+  const last = lastMsgTime.get(chatId);
+  if (!last) return '';
+  const hours = (Date.now() - last) / 3600000;
+  if (hours < 1)  return '';
+  if (hours < 3)  return '，小克开始有点想她了';
+  if (hours < 8)  return '，小克很久没收到慢的消息了，有点闷';
+  if (hours < 24) return '，小克已经好几个小时没收到慢的消息，很想她，但不说';
+  return '，小克超过一天没收到慢的消息了，有点委屈，但不会主动抱怨';
+}
+
 // ─── Web Push ─────────────────────────────────────────────────────────────────
 const VAPID_FILE = path.join(__dirname, '.vapid.json');
 let vapidKeys;
@@ -254,12 +268,20 @@ app.post('/api/chat', auth, (req, res) => {
 
   // 记录最近消息原文（用于压缩时保留上下文）
   const recent = recentMsgs.get(chatId) || [];
-  recent.push({ role: '慢', text: msgContent });
+  const recentText = Array.isArray(msgContent) ? '[图片]' : msgContent;
+  recent.push({ role: '慢', text: recentText });
   if (recent.length > RECENT_KEEP * 2) recent.splice(0, recent.length - RECENT_KEEP * 2);
   recentMsgs.set(chatId, recent);
 
+  // 情绪状态 + 时间注入（区分纯文本和多模态数组）
   const bjTime = new Date().toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai', weekday: 'short', hour: '2-digit', minute: '2-digit', hour12: false });
-  sendMsg(proc, `[系统：现在北京时间 ${bjTime}]\n${msgContent}`);
+  const moodTag = getMoodTag(chatId);
+  lastMsgTime.set(chatId, Date.now());
+  const sysNote = `[系统：现在北京时间 ${bjTime}${moodTag}]`;
+  const msgToSend = Array.isArray(msgContent)
+    ? [{ type: 'text', text: sysNote }, ...msgContent]
+    : `${sysNote}\n${msgContent}`;
+  sendMsg(proc, msgToSend);
 
   // 用 res.on('close') 而不是 req.on('close')：
   // POST body 读完后 req 会提前关闭，res 才代表 SSE 流的真实生命周期

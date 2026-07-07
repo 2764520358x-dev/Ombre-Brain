@@ -1419,6 +1419,17 @@ document.getElementById('photo-input').onchange = async (e) => {
     const img = document.createElement('img');
     img.src = dataUrl;
     img.className = 'chat-img';
+    img.style.cursor = 'zoom-in';
+    img.onclick = () => {
+      const ov = document.createElement('div');
+      ov.style.cssText = 'position:fixed;inset:0;background:#000c;z-index:9999;display:flex;align-items:center;justify-content:center;';
+      const big = document.createElement('img');
+      big.src = dataUrl;
+      big.style.cssText = 'max-width:95vw;max-height:90vh;border-radius:8px;';
+      ov.appendChild(big);
+      ov.onclick = () => ov.remove();
+      document.body.appendChild(ov);
+    };
     bub.appendChild(img);
     contentEl.appendChild(bub);
     const t = document.createElement('div');
@@ -1430,10 +1441,9 @@ document.getElementById('photo-input').onchange = async (e) => {
     history.push({ role:'user', text:'[图片]', time: now() });
     saveHistory();
 
-    // Send multimodal content to AI
+    // Send image to AI — no text hint, let 小克 react naturally
     const content = [
-      { type:'image', source:{ type:'base64', media_type: mediaType, data: base64 } },
-      { type:'text', text:'(用户发来一张图片)' }
+      { type:'image', source:{ type:'base64', media_type: mediaType, data: base64 } }
     ];
     streamAI(null, content);
   };
