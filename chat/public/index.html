@@ -1794,8 +1794,19 @@ async function subscribePush(reg) {
 let swReg = null;
 if ('serviceWorker' in navigator) {
   navigator.serviceWorker.register('/sw.js')
-    .then(reg => { swReg = reg; })
+    .then(reg => {
+      swReg = reg;
+      // 新 SW 安装后自动刷新页面，确保用户总是拿到最新版
+      reg.addEventListener('updatefound', () => {
+        const newWorker = reg.installing;
+        newWorker.addEventListener('statechange', () => {
+          if (newWorker.state === 'activated') window.location.reload();
+        });
+      });
+    })
     .catch(() => {});
+  // SW 切换时重载（skipWaiting 触发 controllerchange）
+  navigator.serviceWorker.addEventListener('controllerchange', () => window.location.reload());
 }
 
 document.getElementById('push-btn').onclick = async () => {

@@ -1,4 +1,4 @@
-const CACHE = 'smallgram-v2';
+const CACHE = 'smallgram-v4';
 
 self.addEventListener('install', e => { self.skipWaiting(); });
 
