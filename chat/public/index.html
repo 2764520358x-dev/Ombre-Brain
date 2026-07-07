@@ -281,6 +281,90 @@ footer {
 }
 .footer-icon-btn:active { background: rgba(76,99,120,0.18); }
 
+/* ── HEARTBEAT OVERLAY ── */
+#heart-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  z-index: 9000;
+  background: rgba(10,8,20,0.90);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 22px;
+}
+#heart-overlay.open { display: flex; }
+.heart-title {
+  font-family: 'Cormorant Garamond', serif;
+  font-size: 20px;
+  color: rgba(255,255,255,0.6);
+  letter-spacing: 0.08em;
+}
+#heart-tap-btn {
+  width: 170px; height: 170px;
+  background: none; border: none; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  position: relative;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+.heart-svg {
+  width: 120px; height: 120px;
+  fill: #E8455A;
+  filter: drop-shadow(0 0 28px rgba(232,69,90,0.55));
+  transition: transform 0.08s ease;
+  transform-origin: center;
+  pointer-events: none;
+}
+#heart-tap-btn:active .heart-svg { transform: scale(0.84); }
+.heart-ring {
+  position: absolute; inset: 0;
+  border-radius: 50%;
+  border: 2.5px solid rgba(232,69,90,0.45);
+  pointer-events: none;
+}
+@keyframes hring {
+  0%   { transform: scale(1);   opacity: 0.7; }
+  100% { transform: scale(1.85); opacity: 0; }
+}
+.heart-ring.pop { animation: hring 0.55s ease-out forwards; }
+.heart-hint {
+  font-size: 15px;
+  color: rgba(255,255,255,0.45);
+  letter-spacing: 0.04em;
+  min-height: 22px;
+}
+#heart-bpm-display {
+  font-family: 'Cormorant Garamond', serif;
+  font-size: 58px; font-weight: 300;
+  color: #fff;
+  display: flex; align-items: flex-end; gap: 8px;
+  min-height: 70px;
+}
+#heart-bpm-display .bpm-unit {
+  font-size: 18px; color: rgba(255,255,255,0.45);
+  padding-bottom: 10px;
+}
+#heart-send-btn {
+  display: none;
+  background: #E8455A; color: #fff;
+  border: none; border-radius: 28px;
+  padding: 13px 36px;
+  font-size: 16px; font-family: 'Noto Serif SC', serif;
+  cursor: pointer; letter-spacing: 0.05em;
+}
+#heart-send-btn.show { display: block; }
+#heart-cancel-btn {
+  background: none; border: none;
+  color: rgba(255,255,255,0.28);
+  font-size: 14px; cursor: pointer;
+  padding: 6px 20px;
+  font-family: 'Noto Serif SC', serif;
+  letter-spacing: 0.04em;
+}
+
 /* Sticker bubble — transparent, big emoji */
 .bubble.sticker {
   background: transparent !important;
@@ -916,6 +1000,24 @@ footer {
 <!-- MESSAGES -->
 <div id="messages"></div>
 
+<!-- HEARTBEAT OVERLAY -->
+<div id="heart-overlay">
+  <div class="heart-title">测心跳</div>
+  <button id="heart-tap-btn">
+    <div class="heart-ring" id="heart-ring"></div>
+    <svg class="heart-svg" viewBox="0 0 24 24">
+      <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/>
+    </svg>
+  </button>
+  <div class="heart-hint" id="heart-hint">跟着心跳节奏，点它</div>
+  <div id="heart-bpm-display">
+    <span id="heart-bpm-num">--</span>
+    <span class="bpm-unit">bpm</span>
+  </div>
+  <button id="heart-send-btn">告诉小克 ♥</button>
+  <button id="heart-cancel-btn">取消</button>
+</div>
+
 <!-- INPUT -->
 <footer>
   <div id="music-bar">
@@ -944,6 +1046,11 @@ footer {
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
         <rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/>
         <polyline points="21 15 16 10 5 21"/>
+      </svg>
+    </button>
+    <button class="footer-icon-btn" id="heart-btn" title="心跳">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+        <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/>
       </svg>
     </button>
     <button class="footer-icon-btn" id="music-btn" title="一起听歌">
@@ -1483,6 +1590,78 @@ document.getElementById('photo-input').onchange = async (e) => {
   };
   reader.readAsDataURL(file);
 };
+
+// ── HEARTBEAT ─────────────────────────────────────────────────────────────────
+(function() {
+  const overlay    = document.getElementById('heart-overlay');
+  const tapBtn     = document.getElementById('heart-tap-btn');
+  const ring       = document.getElementById('heart-ring');
+  const bpmNum     = document.getElementById('heart-bpm-num');
+  const hintEl     = document.getElementById('heart-hint');
+  const sendBtn    = document.getElementById('heart-send-btn');
+  const cancelBtn  = document.getElementById('heart-cancel-btn');
+
+  let tapTimes = [];
+  let lastBpm  = 0;
+
+  document.getElementById('heart-btn').onclick = () => {
+    tapTimes = []; lastBpm = 0;
+    bpmNum.textContent = '--';
+    hintEl.textContent = '跟着心跳节奏，点它';
+    sendBtn.classList.remove('show');
+    overlay.classList.add('open');
+  };
+
+  cancelBtn.onclick = () => overlay.classList.remove('open');
+
+  tapBtn.addEventListener('pointerdown', e => {
+    e.preventDefault();
+    tapTimes.push(Date.now());
+    if (tapTimes.length > 10) tapTimes.shift();
+
+    ring.classList.remove('pop');
+    void ring.offsetWidth;
+    ring.classList.add('pop');
+
+    if (tapTimes.length >= 3) {
+      const intervals = [];
+      for (let i = 1; i < tapTimes.length; i++) intervals.push(tapTimes[i] - tapTimes[i-1]);
+      const valid = intervals.filter(ms => ms > 200 && ms < 3000);
+      if (valid.length >= 2) {
+        const avg = valid.reduce((a,b) => a+b, 0) / valid.length;
+        lastBpm = Math.max(35, Math.min(220, Math.round(60000 / avg)));
+        bpmNum.textContent = lastBpm;
+      }
+    }
+
+    const need = 6 - tapTimes.length;
+    if (tapTimes.length >= 6) {
+      hintEl.textContent = '感觉差不多了？';
+      sendBtn.classList.add('show');
+    } else {
+      hintEl.textContent = `再点 ${need} 下…`;
+    }
+  });
+
+  sendBtn.onclick = () => {
+    overlay.classList.remove('open');
+    if (!lastBpm) return;
+
+    const { contentEl } = createMsgRow('user');
+    const bub = document.createElement('div');
+    bub.className = 'bubble';
+    bub.style.cssText = 'display:flex;align-items:center;gap:8px;font-size:15px;';
+    bub.innerHTML = `<span style="font-size:20px;color:#E8455A;">♥</span>${lastBpm} bpm`;
+    contentEl.appendChild(bub);
+    const t = document.createElement('div');
+    t.className = 'msg-time'; t.textContent = now();
+    contentEl.appendChild(t);
+    document.getElementById('messages').scrollTop = 999999;
+    history.push({ role:'user', text:`[心跳：${lastBpm} bpm]`, time: now() });
+    saveHistory();
+    streamAI(`[心跳：慢的心跳现在是 ${lastBpm} bpm]`);
+  };
+})();
 
 // ── STREAM AI (shared) ────────────────────────────────────────────────────────
 async function streamAI(text, content, onComplete) {
