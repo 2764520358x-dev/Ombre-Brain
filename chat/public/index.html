@@ -1119,7 +1119,7 @@ async function streamAI(text, content, onComplete) {
       if (delta.type === 'text_delta' && delta.text) {
         setStatus('active');
         fullText += delta.text;
-        aiBub.textContent = fullText;
+        aiBub.textContent = fullText.trimStart().startsWith('[voice]') ? '🎤' : fullText;
         msgs.scrollTop = msgs.scrollHeight;
       }
     }
@@ -1132,38 +1132,68 @@ async function streamAI(text, content, onComplete) {
     }
     if (ev.type === 'result') {
       aiBub.classList.remove('streaming');
-      // detect sticker response
       const trimmed = fullText.trim();
-      if ([...trimmed].length <= 3 && /\p{Emoji}/u.test(trimmed)) {
-        aiBub.classList.add('sticker');
-      }
-      // 语音播放按钮
-      if (fullText && !aiBub.classList.contains('sticker')) {
-        const playBtn = document.createElement('button');
-        playBtn.className = 'bubble-play-btn';
-        playBtn.textContent = '🔊 播放';
-        let btnPlaying = false;
-        playBtn.onclick = async () => {
-          // iOS 要求同步创建/恢复 AudioContext，不能等 fetch 回来再做
+      const isVoiceMsg = trimmed.startsWith('[voice]');
+
+      if (isVoiceMsg) {
+        const spokenText = trimmed.slice(7).trim();
+        aiBub.className = 'bubble voice-msg';
+        aiBub.textContent = '';
+        const dur = document.createElement('span');
+        dur.className = 'voice-dur';
+        dur.textContent = '🎤';
+        const bars = document.createElement('span');
+        bars.className = 'voice-bars';
+        bars.textContent = '▌▍▌▎▍▌▍▌';
+        aiBub.appendChild(dur);
+        aiBub.appendChild(bars);
+        aiBub.style.cursor = 'pointer';
+        let vPlaying = false;
+        const playVoice = async () => {
+          if (vPlaying) return;
+          vPlaying = true;
+          bars.style.color = 'var(--accent)';
+          await playTTS(spokenText, () => { vPlaying = false; bars.style.color = ''; });
+        };
+        aiBub.onclick = () => {
           if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
           audioCtx.resume();
-          if (btnPlaying) {
-            if (currentSource) { try { currentSource.stop(); } catch(e) {} currentSource = null; }
-            playBtn.textContent = '🔊 播放';
-            playBtn.classList.remove('playing');
-            btnPlaying = false;
-            return;
-          }
-          btnPlaying = true;
-          playBtn.textContent = '⏸ 停止';
-          playBtn.classList.add('playing');
-          await playTTS(fullText, () => {
-            playBtn.textContent = '🔊 播放';
-            playBtn.classList.remove('playing');
-            btnPlaying = false;
-          });
+          playVoice();
         };
-        aiContent.appendChild(playBtn);
+        playVoice();
+        fullText = spokenText;
+      } else {
+        // detect sticker response
+        if ([...trimmed].length <= 3 && /\p{Emoji}/u.test(trimmed)) {
+          aiBub.classList.add('sticker');
+        }
+        // 语音播放按钮
+        if (fullText && !aiBub.classList.contains('sticker')) {
+          const playBtn = document.createElement('button');
+          playBtn.className = 'bubble-play-btn';
+          playBtn.textContent = '🔊 播放';
+          let btnPlaying = false;
+          playBtn.onclick = async () => {
+            if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            audioCtx.resume();
+            if (btnPlaying) {
+              if (currentSource) { try { currentSource.stop(); } catch(e) {} currentSource = null; }
+              playBtn.textContent = '🔊 播放';
+              playBtn.classList.remove('playing');
+              btnPlaying = false;
+              return;
+            }
+            btnPlaying = true;
+            playBtn.textContent = '⏸ 停止';
+            playBtn.classList.add('playing');
+            await playTTS(fullText, () => {
+              playBtn.textContent = '🔊 播放';
+              playBtn.classList.remove('playing');
+              btnPlaying = false;
+            });
+          };
+          aiContent.appendChild(playBtn);
+        }
       }
 
       const aiTime = now();
