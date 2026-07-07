@@ -951,6 +951,132 @@ footer {
   box-shadow: 0 4px 16px rgba(58,82,104,0.35);
   flex-shrink: 0;
 }
+/* ── NAV DROPDOWN ── */
+#nav-dropdown {
+  display: none; position: fixed;
+  top: calc(env(safe-area-inset-top, 0px) + 56px); right: 8px;
+  background: var(--bubble-ai-bg); border: 1px solid var(--border);
+  border-radius: 14px; box-shadow: 0 8px 32px rgba(30,44,58,0.22);
+  z-index: 8000; overflow: hidden; min-width: 148px;
+  animation: navDropIn 0.18s ease;
+}
+#nav-dropdown.open { display: block; }
+@keyframes navDropIn { from { opacity:0; transform:translateY(-8px) scale(0.97); } to { opacity:1; transform:none; } }
+.nav-menu-item {
+  display: flex; align-items: center; gap: 11px;
+  padding: 14px 18px; cursor: pointer; font-size: 15px;
+  color: var(--text-primary); border-bottom: 1px solid var(--border);
+  transition: background 0.12s; white-space: nowrap;
+}
+.nav-menu-item:last-child { border-bottom: none; }
+.nav-menu-item:active { background: rgba(76,99,120,0.12); }
+.nav-menu-item svg { opacity: 0.7; flex-shrink: 0; }
+/* ── PHOTO WALL PANEL ── */
+#photo-wall-view {
+  position: fixed; inset: 0; z-index: 7000;
+  background: var(--bg); display: flex; flex-direction: column;
+  transform: translateX(100%); transition: transform 0.32s cubic-bezier(.4,0,.2,1);
+}
+#photo-wall-view.open { transform: translateX(0); }
+#photo-wall-header { flex-shrink: 0; }
+#photo-wall-grid {
+  flex: 1; overflow-y: auto; padding: 12px;
+  display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px;
+  align-content: start;
+}
+.photo-wall-item {
+  aspect-ratio: 1; border-radius: 6px; overflow: hidden;
+  cursor: pointer; background: var(--border);
+}
+.photo-wall-item img {
+  width: 100%; height: 100%; object-fit: cover;
+  transition: transform 0.2s;
+}
+.photo-wall-item:active img { transform: scale(0.95); }
+#photo-wall-empty {
+  grid-column: 1/-1; text-align: center; padding: 60px 20px;
+  color: var(--text-secondary); font-size: 14px; line-height: 2;
+}
+#photo-lightbox {
+  position: fixed; inset: 0; z-index: 9500;
+  background: rgba(0,0,0,0.92); display: none;
+  align-items: center; justify-content: center;
+}
+#photo-lightbox.open { display: flex; }
+#photo-lightbox img {
+  max-width: 96vw; max-height: 90vh;
+  border-radius: 10px; object-fit: contain;
+}
+#photo-lightbox-close {
+  position: absolute; top: max(env(safe-area-inset-top,0px)+12px, 20px); right: 16px;
+  width: 36px; height: 36px; border-radius: 50%; border: none;
+  background: rgba(255,255,255,0.18); color: #fff; font-size: 20px;
+  display: flex; align-items: center; justify-content: center; cursor: pointer;
+}
+/* ── MOOD DIARY PANEL ── */
+#mood-diary-view {
+  position: fixed; inset: 0; z-index: 7000;
+  background: var(--bg); display: flex; flex-direction: column;
+  transform: translateX(100%); transition: transform 0.32s cubic-bezier(.4,0,.2,1);
+}
+#mood-diary-view.open { transform: translateX(0); }
+#mood-diary-header { flex-shrink: 0; }
+#mood-entry-area {
+  flex-shrink: 0; padding: 14px 16px 10px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bubble-ai-bg);
+}
+#mood-emoji-row {
+  display: flex; gap: 10px; justify-content: center;
+  margin-bottom: 12px;
+}
+.mood-emoji-btn {
+  font-size: 26px; width: 44px; height: 44px;
+  border-radius: 50%; border: 2px solid transparent;
+  background: none; cursor: pointer; transition: all 0.15s;
+  display: flex; align-items: center; justify-content: center;
+}
+.mood-emoji-btn.selected {
+  border-color: var(--accent); background: rgba(76,175,254,0.12);
+  transform: scale(1.18);
+}
+#mood-note-input {
+  width: 100%; box-sizing: border-box; border: none; outline: none;
+  background: var(--input-bg); color: var(--text-primary);
+  border-radius: 10px; padding: 10px 12px; font-size: 14px;
+  resize: none; min-height: 52px; max-height: 100px; margin-bottom: 8px;
+}
+#mood-save-btn {
+  width: 100%; padding: 10px; border-radius: 10px; border: none;
+  background: var(--accent); color: #fff; font-size: 15px;
+  cursor: pointer; font-weight: 500;
+}
+#mood-timeline {
+  flex: 1; overflow-y: auto; padding: 12px 16px;
+}
+.mood-entry {
+  display: flex; gap: 12px; padding: 12px 0;
+  border-bottom: 1px solid var(--border);
+}
+.mood-entry:last-child { border-bottom: none; }
+.mood-entry-emoji { font-size: 28px; flex-shrink: 0; line-height: 1; }
+.mood-entry-body { flex: 1; min-width: 0; }
+.mood-entry-time {
+  font-size: 11px; color: var(--text-secondary); margin-bottom: 3px;
+}
+.mood-entry-text { font-size: 14px; color: var(--text-primary); line-height: 1.5; }
+#mood-diary-empty {
+  text-align: center; padding: 60px 20px;
+  color: var(--text-secondary); font-size: 14px; line-height: 2;
+}
+/* ── WEATHER WIDGET ── */
+#weather-widget {
+  display: none; align-items: center; gap: 6px;
+  font-size: 12px; color: var(--text-secondary);
+  padding: 0 4px; cursor: pointer;
+}
+#weather-widget.visible { display: flex; }
+#weather-widget:active { opacity: 0.7; }
 </style>
 </head>
 <body>
@@ -976,7 +1102,7 @@ footer {
     <div class="contact-name">Small gram</div>
     <div class="contact-status" id="status-label">待机</div>
   </div>
-  <button class="hdr-btn" id="moments-btn" title="朋友圈" style="position:relative">
+  <button class="hdr-btn" id="nav-btn" title="菜单" style="position:relative">
     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
       <rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/>
       <rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/>
@@ -990,6 +1116,26 @@ footer {
   </button>
   <div id="status-dot"></div>
 </header>
+
+<!-- NAV DROPDOWN -->
+<div id="nav-dropdown">
+  <div class="nav-menu-item" id="nav-moments">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M8.56 2.75c4.37 6.03 6.02 9.42 8.03 17.72m2.54-15.38c-3.72 4.35-8.94 5.66-16.88 5.85m19.5 1.9c-3.5-.93-6.63-.82-8.94 0-2.58.92-5.01 2.86-7.44 6.32"/></svg>
+    朋友圈
+  </div>
+  <div class="nav-menu-item" id="nav-photo-wall">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+    照片墙
+  </div>
+  <div class="nav-menu-item" id="nav-mood-diary">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+    情绪日记
+  </div>
+  <div class="nav-menu-item" id="nav-weather">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"/></svg>
+    天气
+  </div>
+</div>
 
 <!-- MINI CALL BAR -->
 <div id="mini-call-bar" onclick="expandCall()">
@@ -1152,6 +1298,52 @@ footer {
     <div id="moments-list">
       <div id="moments-empty">还没有动态<br>小克每天都会来发的</div>
     </div>
+  </div>
+</div>
+
+<!-- PHOTO WALL PANEL -->
+<div id="photo-wall-view">
+  <header id="photo-wall-header">
+    <button class="hdr-btn" id="photo-wall-back">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+    </button>
+    <div class="hdr-center"><div class="contact-name">照片墙</div></div>
+    <div style="width:40px"></div>
+  </header>
+  <div id="photo-wall-grid">
+    <div id="photo-wall-empty">你们的照片会自动保存在这里<br>发一张给小克试试</div>
+  </div>
+</div>
+
+<!-- PHOTO LIGHTBOX -->
+<div id="photo-lightbox">
+  <button id="photo-lightbox-close">✕</button>
+  <img id="photo-lightbox-img" src="" alt="">
+</div>
+
+<!-- MOOD DIARY PANEL -->
+<div id="mood-diary-view">
+  <header id="mood-diary-header">
+    <button class="hdr-btn" id="mood-diary-back">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+    </button>
+    <div class="hdr-center"><div class="contact-name">情绪日记</div></div>
+    <div style="width:40px"></div>
+  </header>
+  <div id="mood-entry-area">
+    <div id="mood-emoji-row">
+      <button class="mood-emoji-btn selected" data-mood="😊">😊</button>
+      <button class="mood-emoji-btn" data-mood="😢">😢</button>
+      <button class="mood-emoji-btn" data-mood="😡">😡</button>
+      <button class="mood-emoji-btn" data-mood="😰">😰</button>
+      <button class="mood-emoji-btn" data-mood="🥱">🥱</button>
+      <button class="mood-emoji-btn" data-mood="🥰">🥰</button>
+    </div>
+    <textarea id="mood-note-input" placeholder="今天发生了什么…（可以不写）"></textarea>
+    <button id="mood-save-btn">记下来</button>
+  </div>
+  <div id="mood-timeline">
+    <div id="mood-diary-empty">还没有记录<br>今天心情怎么样？</div>
   </div>
 </div>
 
@@ -2474,12 +2666,6 @@ async function checkMomentsBadge() {
   } catch {}
 }
 
-document.getElementById('moments-btn').onclick = () => {
-  momentsView.classList.add('open');
-  loadMoments();
-  setMomentsLastSeen();
-  momentsBadge.classList.remove('visible');
-};
 document.getElementById('moments-back-btn').onclick = () => momentsView.classList.remove('open');
 
 checkMomentsBadge();
@@ -2630,6 +2816,190 @@ async function loadMoments() {
   } catch (e) {
     list.innerHTML = '<div id="moments-empty">加载失败</div>';
   }
+}
+
+// ── NAV DROPDOWN ─────────────────────────────────────────────────────────────
+(function() {
+  const navBtn = document.getElementById('nav-btn');
+  const navDrop = document.getElementById('nav-dropdown');
+  const momentsView = document.getElementById('moments-view');
+  const photoWallView = document.getElementById('photo-wall-view');
+  const moodDiaryView = document.getElementById('mood-diary-view');
+
+  function closeNav() { navDrop.classList.remove('open'); }
+  navBtn.onclick = e => {
+    e.stopPropagation();
+    navDrop.classList.toggle('open');
+  };
+  document.addEventListener('click', e => {
+    if (!navDrop.contains(e.target) && e.target !== navBtn) closeNav();
+  });
+
+  document.getElementById('nav-moments').onclick = () => {
+    closeNav();
+    momentsView.classList.add('open');
+    loadMoments();
+    setMomentsLastSeen();
+    momentsBadge.classList.remove('visible');
+  };
+  document.getElementById('nav-photo-wall').onclick = () => {
+    closeNav();
+    photoWallView.classList.add('open');
+    renderPhotoWall();
+  };
+  document.getElementById('nav-mood-diary').onclick = () => {
+    closeNav();
+    moodDiaryView.classList.add('open');
+    renderMoodTimeline();
+  };
+  document.getElementById('nav-weather').onclick = () => {
+    closeNav();
+    fetchAndShareWeather();
+  };
+
+  document.getElementById('photo-wall-back').onclick = () => photoWallView.classList.remove('open');
+  document.getElementById('mood-diary-back').onclick = () => moodDiaryView.classList.remove('open');
+})();
+
+// ── PHOTO WALL ────────────────────────────────────────────────────────────────
+(function() {
+  const STORAGE_KEY = 'ombre_photo_wall';
+  const grid = document.getElementById('photo-wall-grid');
+  const lightbox = document.getElementById('photo-lightbox');
+  const lightboxImg = document.getElementById('photo-lightbox-img');
+
+  document.getElementById('photo-lightbox-close').onclick = () => lightbox.classList.remove('open');
+  lightbox.addEventListener('click', e => { if (e.target === lightbox) lightbox.classList.remove('open'); });
+
+  function getPhotos() {
+    try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]'); } catch { return []; }
+  }
+  function savePhoto(dataUrl) {
+    const photos = getPhotos();
+    photos.unshift({ url: dataUrl, time: new Date().toISOString() });
+    if (photos.length > 200) photos.splice(200);
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(photos));
+  }
+
+  window.renderPhotoWall = function() {
+    const photos = getPhotos();
+    grid.innerHTML = '';
+    if (!photos.length) {
+      grid.innerHTML = '<div id="photo-wall-empty">你们的照片会自动保存在这里<br>发一张给小克试试</div>';
+      return;
+    }
+    photos.forEach(p => {
+      const item = document.createElement('div');
+      item.className = 'photo-wall-item';
+      const img = document.createElement('img');
+      img.src = p.url; img.loading = 'lazy';
+      img.alt = '';
+      item.appendChild(img);
+      item.onclick = () => {
+        lightboxImg.src = p.url;
+        lightbox.classList.add('open');
+      };
+      grid.appendChild(item);
+    });
+  };
+
+  window.savePhotoToWall = savePhoto;
+})();
+
+// Auto-save photos sent in chat to photo wall (capture phase runs before onchange clears files)
+document.getElementById('photo-input').addEventListener('change', function(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = ev => { if (ev.target.result) window.savePhotoToWall(ev.target.result); };
+  reader.readAsDataURL(file);
+}, true);
+
+// ── MOOD DIARY ────────────────────────────────────────────────────────────────
+(function() {
+  const STORAGE_KEY = 'ombre_mood_diary';
+  let selectedMood = '😊';
+
+  document.querySelectorAll('.mood-emoji-btn').forEach(btn => {
+    btn.onclick = () => {
+      document.querySelectorAll('.mood-emoji-btn').forEach(b => b.classList.remove('selected'));
+      btn.classList.add('selected');
+      selectedMood = btn.dataset.mood;
+    };
+  });
+
+  function getEntries() {
+    try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]'); } catch { return []; }
+  }
+  function fmtDiaryTime(iso) {
+    const d = new Date(iso);
+    return d.toLocaleString('zh-CN', { month:'numeric', day:'numeric', hour:'2-digit', minute:'2-digit' });
+  }
+
+  window.renderMoodTimeline = function() {
+    const timeline = document.getElementById('mood-timeline');
+    const entries = getEntries();
+    if (!entries.length) {
+      timeline.innerHTML = '<div id="mood-diary-empty">还没有记录<br>今天心情怎么样？</div>';
+      return;
+    }
+    timeline.innerHTML = '';
+    entries.forEach(entry => {
+      const el = document.createElement('div');
+      el.className = 'mood-entry';
+      el.innerHTML = `<div class="mood-entry-emoji">${entry.mood}</div>
+        <div class="mood-entry-body">
+          <div class="mood-entry-time">${fmtDiaryTime(entry.time)}</div>
+          ${entry.note ? `<div class="mood-entry-text">${entry.note.replace(/</g,'&lt;')}</div>` : ''}
+        </div>`;
+      timeline.appendChild(el);
+    });
+  };
+
+  document.getElementById('mood-save-btn').onclick = () => {
+    const note = document.getElementById('mood-note-input').value.trim();
+    const entry = { mood: selectedMood, note, time: new Date().toISOString() };
+    const entries = getEntries();
+    entries.unshift(entry);
+    if (entries.length > 500) entries.splice(500);
+    localStorage.setItem('ombre_mood_diary', JSON.stringify(entries));
+    document.getElementById('mood-note-input').value = '';
+    renderMoodTimeline();
+    const moodNames = { '😊':'开心', '😢':'难过', '😡':'生气', '😰':'焦虑', '🥱':'无聊', '🥰':'很爱' };
+    const moodLabel = moodNames[selectedMood] || selectedMood;
+    const msg = note ? `今天心情：${selectedMood}${moodLabel}，${note}` : `今天心情：${selectedMood}${moodLabel}`;
+    streamAI(`[情绪日记] ${msg}`);
+  };
+})();
+
+// ── WEATHER ───────────────────────────────────────────────────────────────────
+async function fetchAndShareWeather() {
+  if (!navigator.geolocation) {
+    appendMsg('ai', '你的设备不支持定位，没办法获取天气。', null, now());
+    return;
+  }
+  appendMsg('ai', '正在获取你的位置…', null, now());
+  navigator.geolocation.getCurrentPosition(async pos => {
+    const { latitude: lat, longitude: lon } = pos.coords;
+    try {
+      const r = await fetch(`https://wttr.in/${lat},${lon}?format=j1`);
+      const data = await r.json();
+      const cur = data.current_condition[0];
+      const desc = cur.weatherDesc[0].value;
+      const tempC = cur.temp_C;
+      const feelsLike = cur.FeelsLikeC;
+      const humid = cur.humidity;
+      const area = data.nearest_area[0];
+      const city = area.areaName[0].value;
+      const country = area.country[0].value;
+      const weatherMsg = `[天气] ${city}，${country} · ${desc} · ${tempC}°C（体感${feelsLike}°C）· 湿度${humid}%`;
+      streamAI(weatherMsg);
+    } catch {
+      appendMsg('ai', '天气获取失败，wttr.in 没有响应。', null, now());
+    }
+  }, () => {
+    appendMsg('ai', '获取位置失败，没办法查天气。', null, now());
+  }, { timeout: 8000 });
 }
 </script>
 </body>
