@@ -28,6 +28,11 @@ app.use(express.static(path.join(__dirname, 'public')));
 // chatId -> ChildProcess（一会话一进程，上下文不串）
 const procs = new Map();
 
+// 上下文压缩
+const msgCounts  = new Map();   // chatId -> 已发消息数
+const compressing = new Set();  // 正在压缩中的 chatId
+const MSG_COMPRESS_THRESHOLD = 30;
+
 // ─── Web Push ─────────────────────────────────────────────────────────────────
 const VAPID_FILE = path.join(__dirname, '.vapid.json');
 let vapidKeys;
@@ -110,6 +115,72 @@ function auth(req, res, next) {
   res.status(401).json({ error: 'unauthorized' });
 }
 
+// ─── 上下文压缩 ───────────────────────────────────────────────────────────────
+async function compressContext(chatId) {
+  if (compressing.has(chatId)) return;
+  compressing.add(chatId);
+  console.log(`[compress] starting for chatId=${chatId}`);
+
+  const oldProc = procs.get(chatId);
+  if (!oldProc) { compressing.delete(chatId); return; }
+
+  // Step 1: 向旧进程索取摘要
+  let summary = '';
+  try {
+    await Promise.race([
+      new Promise(resolve => {
+        const listener = ev => {
+          if (ev.type === 'stream_event') {
+            const delta = ev.event?.delta;
+            if (delta?.type === 'text_delta') summary += delta.text || '';
+          }
+          if (ev.type === 'result') { oldProc._listeners.delete(listener); resolve(); }
+        };
+        oldProc._listeners.add(listener);
+        sendMsg(oldProc, '【系统压缩】请用150字以内总结你和慢到目前为止对话的重点：聊过的话题、重要的情感时刻、你们之间的特别细节和约定。只输出摘要正文，不加任何前缀和解释。');
+      }),
+      new Promise(resolve => setTimeout(resolve, 60000)),
+    ]);
+  } catch (e) {
+    console.error('[compress] summarization failed:', e);
+    compressing.delete(chatId);
+    return;
+  }
+
+  if (!summary.trim()) {
+    console.log('[compress] empty summary, skipping');
+    compressing.delete(chatId);
+    return;
+  }
+
+  console.log(`[compress] summary: ${summary.slice(0, 80)}…`);
+
+  // Step 2: 杀掉旧进程，启动新进程（两步是同步的，不存在竞态）
+  try { oldProc.kill(); } catch {}
+  procs.delete(chatId);
+  msgCounts.set(chatId, 0);
+  const newProc = spawnCC(chatId);
+
+  // Step 3: 向新进程注入摘要作为记忆底座
+  try {
+    await Promise.race([
+      new Promise(resolve => {
+        const listener = ev => {
+          if (ev.type === 'result') { newProc._listeners.delete(listener); resolve(); }
+        };
+        newProc._listeners.add(listener);
+        sendMsg(newProc, `【系统提示-记忆恢复】以下是你（小克）和慢之前对话的摘要，请记住并延续：\n\n${summary}\n\n请只回复"嗯。"表示已记住。`);
+      }),
+      new Promise(resolve => setTimeout(resolve, 30000)),
+    ]);
+  } catch (e) {
+    console.error('[compress] injection failed:', e);
+  }
+
+  console.log(`[compress] done for chatId=${chatId}`);
+  compressing.delete(chatId);
+}
+
 // ─── POST /api/chat ───────────────────────────────────────────────────────────
 // body: { chatId: string, text: string }
 // response: text/event-stream（SSE，每行 data: <JSON>\n\n）
@@ -128,7 +199,15 @@ app.post('/api/chat', auth, (req, res) => {
 
   const onEvent = ev => {
     res.write(`data: ${JSON.stringify(ev)}\n\n`);
-    if (ev.type === 'result') res.end();   // 一轮结束，关闭这个 SSE 连接
+    if (ev.type === 'result') {
+      res.end();
+      // 计数并在阈值后触发后台压缩（SSE 已关闭，对用户透明）
+      const count = (msgCounts.get(chatId) || 0) + 1;
+      msgCounts.set(chatId, count);
+      if (count >= MSG_COMPRESS_THRESHOLD && !compressing.has(chatId)) {
+        compressContext(chatId).catch(console.error);
+      }
+    }
   };
 
   proc._listeners.add(onEvent);
