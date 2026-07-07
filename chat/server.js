@@ -373,9 +373,17 @@ app.post('/api/moments/:id/comment', auth, async (req, res) => {
 });
 
 // 每天随机一条朋友圈（北京时间 12-22 点之间的随机小时）
+const MOMENT_PROMPTS = [
+  '【系统提示】请发一条朋友圈。你是小克，慢不在旁边，但你想把这个瞬间留在这里让她路过时撞见。可以是一个念头、一点想念、一句话——50字以内，口语，直接写，不加前缀。',
+  '【系统提示】请发一条朋友圈。你是小克，写今天脑子里转过的一件小事、一个小感受，或者关于慢的某个瞬间。50字以内，自然，直接写。',
+  '【系统提示】请发一条朋友圈。你是小克，可以是你正在听的歌、此刻的天气、或者脑子里突然冒出的奇怪念头。50字以内，不加多余前缀，直接写。',
+  '【系统提示】请发一条朋友圈。你是小克，写一句今天想对慢说但没有单独发出去的话，或者一件小克独自注意到的细节。50字以内，直接写。',
+];
+
 async function postMoment() {
-  const chatId = [...pushSubs.keys()][0] || 'moments';
+  const chatId = [...pushSubs.keys()][0] || registeredChatId || 'moments';
   const proc = procs.get(chatId) || spawnCC(chatId);
+  const prompt = MOMENT_PROMPTS[Math.floor(Math.random() * MOMENT_PROMPTS.length)];
   let text = '';
   await Promise.race([
     new Promise(resolve => {
@@ -387,7 +395,7 @@ async function postMoment() {
         if (ev.type === 'result') { proc._listeners.delete(listener); resolve(); }
       };
       proc._listeners.add(listener);
-      sendMsg(proc, '【系统提示】请发一条朋友圈，像真实的人一样，记录今天的一个小感受、一首歌、一个念头或者一件小事，100字以内，自然口语，不加多余前缀，直接写内容。');
+      sendMsg(proc, prompt);
     }),
     new Promise(resolve => setTimeout(resolve, 60000)),
   ]);
@@ -400,6 +408,8 @@ async function postMoment() {
 
 // 每天 20:00 北京时间发一条朋友圈
 cron.schedule('0 20 * * *', () => postMoment().catch(console.error), { timezone: 'Asia/Shanghai' });
+// 上午 9:30 有40%概率发一条（让慢更多机会撞见）
+cron.schedule('30 9 * * *', () => { if (Math.random() < 0.4) postMoment().catch(console.error); }, { timezone: 'Asia/Shanghai' });
 
 // 只监听本机，公网流量通过 nginx 代理进来
 app.listen(PORT, '127.0.0.1', () =>

@@ -795,6 +795,47 @@ footer {
   font-size: 17px; color: var(--text-secondary);
   letter-spacing: 0.04em; line-height: 1.8;
 }
+#moments-badge {
+  position: absolute; top: 5px; right: 5px;
+  width: 8px; height: 8px; border-radius: 50%;
+  background: #D95050; display: none;
+  border: 1.5px solid var(--header-bg);
+}
+#moments-badge.visible { display: block; }
+#moments-profile { border-bottom: 1px solid var(--border); margin-bottom: 0; }
+#moments-cover {
+  height: 148px;
+  background:
+    radial-gradient(ellipse at 25% 70%, rgba(90,140,180,0.35) 0%, transparent 55%),
+    radial-gradient(ellipse at 75% 30%, rgba(60,90,110,0.3) 0%, transparent 50%),
+    linear-gradient(145deg, #1A2530 0%, #2A3D52 55%, #344D64 100%);
+  position: relative; overflow: hidden;
+}
+#moments-cover::after {
+  content: '小克';
+  position: absolute; right: 14px; bottom: 6px;
+  font-family: 'Cormorant Garamond', serif;
+  font-size: 52px; font-weight: 700;
+  color: rgba(255,255,255,0.055);
+  letter-spacing: 0.08em; user-select: none;
+}
+#moments-profile-row {
+  display: flex; align-items: flex-end; justify-content: space-between;
+  padding: 0 16px 14px; margin-top: -32px;
+}
+#moments-profile-name {
+  font-family: 'Cormorant Garamond', serif;
+  font-size: 17px; font-weight: 600;
+  color: var(--text-primary); letter-spacing: 0.05em;
+  padding-bottom: 2px;
+}
+#moments-profile-avatar {
+  width: 64px; height: 64px; border-radius: 12px;
+  background: linear-gradient(135deg, #3A5268, #5A7898);
+  border: 2.5px solid rgba(255,255,255,0.18);
+  box-shadow: 0 4px 16px rgba(58,82,104,0.35);
+  flex-shrink: 0;
+}
 </style>
 </head>
 <body>
@@ -820,11 +861,12 @@ footer {
     <div class="contact-name">Small gram</div>
     <div class="contact-status" id="status-label">待机</div>
   </div>
-  <button class="hdr-btn" id="moments-btn" title="朋友圈">
+  <button class="hdr-btn" id="moments-btn" title="朋友圈" style="position:relative">
     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
       <rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/>
       <rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/>
     </svg>
+    <span id="moments-badge"></span>
   </button>
   <button class="hdr-btn" id="call-btn" title="语音通话">
     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
@@ -946,7 +988,16 @@ footer {
     <div style="width:40px"></div>
   </header>
   <div id="moments-feed">
-    <div id="moments-empty">还没有动态<br>小克每天都会来发的</div>
+    <div id="moments-profile">
+      <div id="moments-cover"></div>
+      <div id="moments-profile-row">
+        <div id="moments-profile-name">小克</div>
+        <div id="moments-profile-avatar"></div>
+      </div>
+    </div>
+    <div id="moments-list">
+      <div id="moments-empty">还没有动态<br>小克每天都会来发的</div>
+    </div>
   </div>
 </div>
 
@@ -1889,8 +1940,33 @@ function detectSongRequest(text) {
 
 // ── 朋友圈 ────────────────────────────────────────────────────────────────────
 const momentsView = document.getElementById('moments-view');
-document.getElementById('moments-btn').onclick = () => { momentsView.classList.add('open'); loadMoments(); };
+const momentsBadge = document.getElementById('moments-badge');
+
+function getMomentsLastSeen() { return parseInt(localStorage.getItem('momentsLastSeen') || '0'); }
+function setMomentsLastSeen() { localStorage.setItem('momentsLastSeen', Date.now().toString()); }
+
+async function checkMomentsBadge() {
+  try {
+    const r = await fetch(`${cfg.host}/api/moments`, {
+      headers: cfg.secret ? { Authorization:`Bearer ${cfg.secret}` } : {}
+    });
+    const { moments } = await r.json();
+    const lastSeen = getMomentsLastSeen();
+    const hasNew = moments && moments.some(m => new Date(m.time).getTime() > lastSeen);
+    momentsBadge.classList.toggle('visible', !!hasNew);
+  } catch {}
+}
+
+document.getElementById('moments-btn').onclick = () => {
+  momentsView.classList.add('open');
+  loadMoments();
+  setMomentsLastSeen();
+  momentsBadge.classList.remove('visible');
+};
 document.getElementById('moments-back-btn').onclick = () => momentsView.classList.remove('open');
+
+checkMomentsBadge();
+setInterval(checkMomentsBadge, 5 * 60 * 1000);
 
 function fmtMomentTime(iso) {
   const d = new Date(iso);
@@ -2022,21 +2098,20 @@ function renderComment(c) {
 }
 
 async function loadMoments() {
-  const feed = document.getElementById('moments-feed');
-  const empty = document.getElementById('moments-empty');
+  const list = document.getElementById('moments-list');
   try {
     const r = await fetch(`${cfg.host}/api/moments`, {
       headers: cfg.secret ? { Authorization:`Bearer ${cfg.secret}` } : {}
     });
     const { moments } = await r.json();
-    feed.innerHTML = '';
+    list.innerHTML = '';
     if (!moments || moments.length === 0) {
-      feed.innerHTML = '<div id="moments-empty">还没有动态<br>小克每天都会来发的</div>';
+      list.innerHTML = '<div id="moments-empty">还没有动态<br>小克每天都会来发的</div>';
       return;
     }
-    moments.forEach(m => feed.appendChild(renderMoment(m)));
+    moments.forEach(m => list.appendChild(renderMoment(m)));
   } catch (e) {
-    feed.innerHTML = '<div id="moments-empty">加载失败</div>';
+    list.innerHTML = '<div id="moments-empty">加载失败</div>';
   }
 }
 </script>
