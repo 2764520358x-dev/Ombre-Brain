@@ -1467,7 +1467,7 @@ async function streamAI(text, content, onComplete) {
       if (delta.type === 'text_delta' && delta.text) {
         setStatus('active');
         fullText += delta.text;
-        aiBub.textContent = fullText.trimStart().startsWith('[voice]') ? '🎤' : fullText.replace(/\n+---+\n+/g, '\n\n');
+        aiBub.textContent = fullText.trimStart().startsWith('[voice]') ? '🎤' : fullText.replace(/^[ \t]*-{3,}[ \t]*$/mg, '');
         msgs.scrollTop = msgs.scrollHeight;
       }
     }
@@ -1482,8 +1482,8 @@ async function streamAI(text, content, onComplete) {
       aiBub.classList.remove('streaming');
       const trimmed = fullText.trim();
 
-      // 多条消息：按 ---（允许前后有多个换行）拆分，每条独立气泡，错开出现
-      const parts = trimmed.split(/\n+---+\n+/).map(p => p.trim()).filter(Boolean);
+      // 多条消息：按独占一行的 --- 拆分，每条独立气泡，错开出现
+      const parts = trimmed.split(/^[ \t]*-{3,}[ \t]*$/m).map(p => p.trim()).filter(Boolean);
       if (parts.length > 1) {
         aiWrap.remove();
         parts.forEach((part, i) => {
