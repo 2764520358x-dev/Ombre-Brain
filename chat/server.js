@@ -95,10 +95,13 @@ function spawnCC(chatId) {
     }
   });
 
+  proc.stdin.on('error', err => console.error(`[cc:${chatId}] stdin error: ${err.message}`));
   proc.stderr.on('data', c => process.stderr.write(`[cc:${chatId}] ${c}`));
   proc.on('close', code => {
     console.log(`[cc] session ${chatId} exited code=${code}`);
     procs.delete(chatId);
+    msgCounts.delete(chatId);
+    compressing.delete(chatId);
   });
 
   procs.set(chatId, proc);
@@ -109,9 +112,13 @@ function spawnCC(chatId) {
 // ─── 发消息 ───────────────────────────────────────────────────────────────────
 function sendMsg(proc, content) {
   // content 可以是字符串，或 [{type:'text',text:…},{type:'image',source:{…}}]
-  proc.stdin.write(
-    JSON.stringify({ type: 'user', message: { role: 'user', content } }) + '\n'
-  );
+  try {
+    proc.stdin.write(
+      JSON.stringify({ type: 'user', message: { role: 'user', content } }) + '\n'
+    );
+  } catch (e) {
+    console.error('[sendMsg] stdin write failed:', e.message);
+  }
 }
 
 // ─── 鉴权中间件 ───────────────────────────────────────────────────────────────
@@ -223,7 +230,7 @@ app.post('/api/chat', auth, (req, res) => {
   const proc = procs.get(chatId) || spawnCC(chatId);
 
   const onEvent = ev => {
-    res.write(`data: ${JSON.stringify(ev)}\n\n`);
+    try { res.write(`data: ${JSON.stringify(ev)}\n\n`); } catch { proc._listeners.delete(onEvent); return; }
     if (ev.type === 'result') {
       res.end();
       // 记录小克的回复原文
@@ -530,6 +537,10 @@ async function postMoment() {
 cron.schedule('0 20 * * *', () => postMoment().catch(console.error), { timezone: 'Asia/Shanghai' });
 // 上午 9:30 有40%概率发一条（让慢更多机会撞见）
 cron.schedule('30 9 * * *', () => { if (Math.random() < 0.4) postMoment().catch(console.error); }, { timezone: 'Asia/Shanghai' });
+
+// 全局错误保底：只记录，不让进程崩掉
+process.on('uncaughtException', err => console.error('[FATAL] uncaughtException:', err));
+process.on('unhandledRejection', reason => console.error('[FATAL] unhandledRejection:', reason));
 
 // 只监听本机，公网流量通过 nginx 代理进来
 app.listen(PORT, '127.0.0.1', () =>
