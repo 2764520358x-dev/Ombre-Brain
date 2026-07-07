@@ -1857,7 +1857,7 @@ async function streamAI(text, content, onComplete) {
               const tEl = document.createElement('div'); tEl.className = 'msg-time'; tEl.textContent = t; c.appendChild(tEl);
               msgs.appendChild(w); msgs.scrollTop = msgs.scrollHeight;
               addLongPress(b, displayText);
-              setTimeout(() => b.onclick(), 300);
+              if (!callActive) setTimeout(() => b.onclick(), 300);
             } else {
               const b = document.createElement('div'); b.className = 'bubble'; b.textContent = displayText; c.appendChild(b);
               const pBtn = document.createElement('button');
@@ -1977,8 +1977,11 @@ let callTimerInterval = null;
 let callSeconds = 0;
 let speakerOn = true;
 let callListening = false;
-let audioCtx = null;     // Web Audio API context（必须在用户手势里创建）
-let currentSource = null; // AudioBufferSourceNode
+let speakBusy = false;
+let speakQueue = [];
+let recognitionRestartTimer = null;
+let audioCtx = null;
+let currentSource = null;
 
 // 底层 TTS 播放（Web Audio API，iOS 兼容）
 async function playTTS(text, onEnd) {
@@ -2001,7 +2004,8 @@ async function playTTS(text, onEnd) {
     const src = audioCtx.createBufferSource();
     src.buffer = audioBuf;
     src.connect(audioCtx.destination);
-    src.onended = () => { currentSource = null; if (onEnd) onEnd(); };
+    const safety = setTimeout(() => { currentSource = null; if (onEnd) onEnd(); }, audioBuf.duration * 1000 + 3000);
+    src.onended = () => { clearTimeout(safety); currentSource = null; if (onEnd) onEnd(); };
     src.start(0);
     currentSource = src;
   } catch (e) {
@@ -2010,20 +2014,57 @@ async function playTTS(text, onEnd) {
   }
 }
 
-// 通话里的 TTS（播完后继续监听）
-async function speak(text) {
-  if (!speakerOn || !text) return;
-  if (callActive) document.getElementById('call-status-txt').textContent = '回复中…';
-  await playTTS(text, () => {
-    if (callActive && !isGenerating) startCallListening();
-  });
+// 通话专用：TTS 排队播放（半双工），播完自动恢复监听
+function callSpeak(rawText) {
+  if (!callActive || !speakerOn || !rawText) return;
+  // 拆分 --- 多段，去掉 [voice] 前缀
+  const parts = rawText.split(/^[ \t]*-{3,}[ \t]*$/m)
+    .map(p => p.trim()).filter(Boolean)
+    .map(p => p.startsWith('[voice]') ? p.slice(7).trim() : p);
+  for (const p of parts) if (p) speakQueue.push(p);
+  if (!speakBusy) drainSpeakQueue();
+}
+
+async function drainSpeakQueue() {
+  if (speakBusy) return;
+  speakBusy = true;
+  // 半双工：说话时关麦，防止 AI 声音被重新识别
+  clearTimeout(recognitionRestartTimer);
+  if (recognition && callListening) { try { recognition.stop(); } catch(e) {} }
+
+  while (speakQueue.length && callActive) {
+    const text = speakQueue.shift();
+    const preview = text.length > 18 ? text.slice(0, 18) + '…' : text;
+    document.getElementById('call-status-txt').textContent = preview;
+    await new Promise(resolve => playTTS(text, resolve));
+  }
+
+  speakBusy = false;
+  if (callActive && !isGenerating) {
+    document.getElementById('call-status-txt').textContent = '通话中';
+    setTimeout(() => { if (callActive && !isGenerating && !speakBusy) startCallListening(); }, 250);
+  }
 }
 
 function startCallListening() {
-  if (!recognition || callListening || isGenerating) return;
-  try {
-    recognition.start();
-  } catch(e) {}
+  if (!callActive || !recognition || callListening || isGenerating || speakBusy) return;
+  document.getElementById('call-status-txt').textContent = '正在听…';
+  try { recognition.start(); } catch(e) {}
+}
+
+async function handleCallSpeech(transcript) {
+  if (!transcript || isGenerating) return;
+  // 停麦去处理
+  clearTimeout(recognitionRestartTimer);
+  if (recognition && callListening) { try { recognition.stop(); } catch(e) {} }
+  document.getElementById('call-status-txt').textContent = '思考中…';
+  const userTime = now();
+  appendMsg('user', transcript, null, userTime);
+  history.push({ role: 'user', text: transcript, time: userTime });
+  saveHistory();
+  await streamAI(`[语音通话] ${transcript}`, null, (fullText) => {
+    callSpeak(fullText);
+  });
 }
 
 function updateCallTimer() {
@@ -2046,65 +2087,86 @@ function expandCall() {
 }
 
 function openCall() {
-  // 在用户手势里创建 / 恢复 AudioContext，解锁 iOS 音频
+  // iOS 音频解锁：在用户手势里创建 AudioContext + 播一帧静音
   if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-  if (audioCtx.state === 'suspended') audioCtx.resume();
+  audioCtx.resume();
+  const silBuf = audioCtx.createBuffer(1, 1, 22050);
+  const silSrc = audioCtx.createBufferSource();
+  silSrc.buffer = silBuf; silSrc.connect(audioCtx.destination); silSrc.start(0);
 
   callActive = true;
   callSeconds = 0;
+  speakQueue = [];
+  speakBusy = false;
   document.getElementById('call-screen').classList.add('active');
   document.getElementById('call-status-txt').textContent = '通话中';
   callTimerInterval = setInterval(updateCallTimer, 1000);
 
-  if (SpeechRecognition) {
-    recognition = new SpeechRecognition();
-    recognition.lang = 'zh-CN';
-    recognition.continuous = false;
-    recognition.interimResults = false;
-
-    recognition.onstart = () => {
-      callListening = true;
-      document.getElementById('call-mic').classList.add('listening');
-      document.getElementById('call-status-txt').textContent = '正在听…';
-    };
-    recognition.onend = () => {
-      callListening = false;
-      document.getElementById('call-mic').classList.remove('listening');
-      if (callActive && !isGenerating && !currentSource) {
-        document.getElementById('call-status-txt').textContent = '通话中';
-      }
-    };
-    recognition.onresult = async (e) => {
-      const transcript = e.results[0][0].transcript.trim();
-      if (!transcript) return;
-      document.getElementById('call-status-txt').textContent = '思考中…';
-
-      // Show in chat too
-      const userTime = now();
-      appendMsg('user', transcript, null, userTime);
-      history.push({ role:'user', text: transcript, time: userTime });
-      saveHistory();
-
-      // Stream AI and speak response
-      await streamAI(transcript, null, (fullText) => {
-        speak(fullText);
-      });
-    };
-    recognition.onerror = () => {
-      callListening = false;
-      document.getElementById('call-mic').classList.remove('listening');
-    };
-
-    // Auto-start listening
-    setTimeout(() => startCallListening(), 500);
-  } else {
+  if (!SpeechRecognition) {
     document.getElementById('call-status-txt').textContent = '浏览器不支持语音识别';
+    return;
   }
+
+  recognition = new SpeechRecognition();
+  recognition.lang = 'zh-CN';
+  recognition.continuous = true;    // 连续识别
+  recognition.interimResults = true; // 显示实时中间结果
+
+  recognition.onstart = () => {
+    callListening = true;
+    document.getElementById('call-mic').classList.add('listening');
+    if (!speakBusy && !isGenerating)
+      document.getElementById('call-status-txt').textContent = '正在听…';
+  };
+
+  recognition.onend = () => {
+    callListening = false;
+    document.getElementById('call-mic').classList.remove('listening');
+    // 自动重启：iOS 下 continuous 模式也会自己断，必须重启才不"聋"
+    if (callActive && !isGenerating && !speakBusy) {
+      recognitionRestartTimer = setTimeout(() => {
+        if (callActive && !isGenerating && !speakBusy) startCallListening();
+      }, 450);
+    }
+  };
+
+  recognition.onresult = async (e) => {
+    let interim = '';
+    for (let i = e.resultIndex; i < e.results.length; i++) {
+      const piece = (e.results[i][0]?.transcript || '').trim();
+      if (e.results[i].isFinal) {
+        if (piece) handleCallSpeech(piece);
+      } else {
+        interim += piece;
+      }
+    }
+    if (interim && !isGenerating && !speakBusy) {
+      const preview = interim.length > 16 ? interim.slice(0, 16) + '…' : interim;
+      document.getElementById('call-status-txt').textContent = `听到：${preview}`;
+    }
+  };
+
+  recognition.onerror = (e) => {
+    callListening = false;
+    document.getElementById('call-mic').classList.remove('listening');
+    // no-speech / aborted 正常情况，自动重启
+    if (callActive && !isGenerating && !speakBusy &&
+        (e.error === 'no-speech' || e.error === 'aborted')) {
+      recognitionRestartTimer = setTimeout(() => {
+        if (callActive && !isGenerating && !speakBusy) startCallListening();
+      }, 450);
+    }
+  };
+
+  setTimeout(() => startCallListening(), 600);
 }
 
 function closeCall() {
   callActive = false;
   clearInterval(callTimerInterval);
+  clearTimeout(recognitionRestartTimer);
+  speakQueue = [];
+  speakBusy = false;
   if (recognition) { try { recognition.stop(); } catch(e) {} recognition = null; }
   if (currentSource) { try { currentSource.stop(); } catch(e) {} currentSource = null; }
   document.getElementById('call-screen').classList.remove('active');
