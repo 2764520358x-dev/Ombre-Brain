@@ -1731,7 +1731,7 @@ document.getElementById('photo-input').onchange = async (e) => {
 })();
 
 // ── STREAM AI (shared) ────────────────────────────────────────────────────────
-async function streamAI(text, content, onComplete) {
+async function streamAI(text, content, onComplete, onSentence) {
   if (isGenerating) return;
   isGenerating = true;
   document.getElementById('send-btn').disabled = true;
@@ -1756,6 +1756,7 @@ async function streamAI(text, content, onComplete) {
   let thinkingTxt = '';
   let thinkingWrap = null;
   let thinkingBody = null;
+  let sentenceBuf = '';
 
   try {
     const body = content
@@ -1809,6 +1810,16 @@ async function streamAI(text, content, onComplete) {
         fullText += delta.text;
         aiBub.textContent = fullText.trimStart().startsWith('[voice]') ? '🎤' : fullText.replace(/^[ \t]*-{3,}[ \t]*$/mg, '');
         msgs.scrollTop = msgs.scrollHeight;
+        // 逐句 TTS：检测中文句子结束符
+        if (onSentence) {
+          sentenceBuf += delta.text;
+          let m;
+          while ((m = /^([\s\S]*?[。！？…\n])/.exec(sentenceBuf)) !== null) {
+            const s = m[1].replace(/^[ \t]*-{3,}[ \t]*$/mg, '').trim();
+            sentenceBuf = sentenceBuf.slice(m[1].length);
+            if (s) onSentence(s);
+          }
+        }
       }
     }
     if (ev.type === 'system/api_retry') {
@@ -1820,6 +1831,12 @@ async function streamAI(text, content, onComplete) {
     }
     if (ev.type === 'result') {
       aiBub.classList.remove('streaming');
+      // 冲刷剩余没有句号的尾巴
+      if (onSentence && sentenceBuf.trim()) {
+        const tail = sentenceBuf.replace(/^[ \t]*-{3,}[ \t]*$/mg, '').trim();
+        sentenceBuf = '';
+        if (tail) onSentence(tail);
+      }
       const trimmed = fullText.trim();
 
       // 多条消息：按独占一行的 --- 拆分，每条独立气泡，错开出现
@@ -2062,9 +2079,12 @@ async function handleCallSpeech(transcript) {
   appendMsg('user', transcript, null, userTime);
   history.push({ role: 'user', text: transcript, time: userTime });
   saveHistory();
-  await streamAI(`[语音通话] ${transcript}`, null, (fullText) => {
-    callSpeak(fullText);
-  });
+  await streamAI(
+    `[语音通话] ${transcript}`,
+    null,
+    null,  // onComplete 不用，逐句已经处理了 TTS
+    (sentence) => { if (callActive) callSpeak(sentence); }
+  );
 }
 
 function updateCallTimer() {
