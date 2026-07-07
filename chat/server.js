@@ -227,7 +227,7 @@ app.post('/api/chat', auth, (req, res) => {
     if (ev.type === 'result') {
       res.end();
       // 记录小克的回复原文
-      const aiText = ev.result?.trim() || '';
+      const aiText = typeof ev.result === 'string' ? ev.result.trim() : '';
       if (aiText) {
         const r = recentMsgs.get(chatId) || [];
         r.push({ role: '小克', text: aiText });
