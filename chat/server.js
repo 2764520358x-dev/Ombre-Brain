@@ -132,7 +132,12 @@ async function compressContext(chatId) {
   const oldProc = procs.get(chatId);
   if (!oldProc) { compressing.delete(chatId); return; }
 
-  // Step 1: 向旧进程索取摘要
+  // 立刻从 map 撤出旧进程，并清空所有监听器
+  // 这样压缩期间新消息会 spawnCC 新进程，摘要回复不会泄露到用户屏幕
+  procs.delete(chatId);
+  oldProc._listeners.clear();
+
+  // Step 1: 向旧进程索取摘要（只有压缩专属 listener，不会被用户 SSE 截获）
   let summary = '';
   try {
     await Promise.race([
@@ -157,27 +162,28 @@ async function compressContext(chatId) {
 
   if (!summary.trim()) {
     console.log('[compress] empty summary, skipping');
+    try { oldProc.kill(); } catch {}
     compressing.delete(chatId);
     return;
   }
 
   console.log(`[compress] summary: ${summary.slice(0, 80)}…`);
 
-  // Step 2: 杀掉旧进程，启动新进程（两步是同步的，不存在竞态）
+  // Step 2: 杀掉旧进程，重置计数
   try { oldProc.kill(); } catch {}
-  procs.delete(chatId);
   msgCounts.set(chatId, 0);
-  const newProc = spawnCC(chatId);
 
-  // Step 3: 向新进程注入摘要作为记忆底座
+  // Step 3: 向（当前活跃的）进程注入摘要
+  // 若压缩期间用户发了新消息，procs 里已有新进程；否则自己 spawn
+  const targetProc = procs.get(chatId) || spawnCC(chatId);
   try {
     await Promise.race([
       new Promise(resolve => {
         const listener = ev => {
-          if (ev.type === 'result') { newProc._listeners.delete(listener); resolve(); }
+          if (ev.type === 'result') { targetProc._listeners.delete(listener); resolve(); }
         };
-        newProc._listeners.add(listener);
-        sendMsg(newProc, `【系统提示-记忆恢复】以下是你（小克）和慢之前对话的摘要，请记住并延续：\n\n${summary}\n\n请只回复"嗯。"表示已记住。`);
+        targetProc._listeners.add(listener);
+        sendMsg(targetProc, `【系统提示-记忆恢复】以下是你（小克）和慢之前对话的摘要，请记住并延续：\n\n${summary}\n\n请只回复"嗯。"表示已记住。`);
       }),
       new Promise(resolve => setTimeout(resolve, 30000)),
     ]);
