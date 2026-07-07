@@ -281,6 +281,28 @@ function scheduleNextRandom() {
 }
 scheduleNextRandom();
 
+// ─── 音乐搜索代理 ─────────────────────────────────────────────────────────────
+app.get('/api/music/search', auth, async (req, res) => {
+  const q = (req.query.q || '').trim();
+  if (!q) return res.json({ songs: [] });
+  try {
+    const resp = await fetch(
+      `https://music.163.com/api/search/get?s=${encodeURIComponent(q)}&type=1&limit=15`,
+      { headers: { 'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15' } }
+    );
+    const data = await resp.json();
+    const songs = (data.result?.songs || []).map(s => ({
+      id: s.id,
+      name: s.name,
+      artist: (s.artists || []).map(a => a.name).join(' / '),
+      duration: Math.round((s.duration || 0) / 1000),
+    }));
+    res.json({ songs });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 // ─── 朋友圈 ───────────────────────────────────────────────────────────────────
 const MOMENTS_FILE = path.join(__dirname, 'moments.json');
 
