@@ -3,12 +3,12 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<title>阴影</title>
+<title>Small gram</title>
 <meta name="theme-color" content="#F7F7F7">
 <link rel="manifest" href="/manifest.json">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
-<meta name="apple-mobile-web-app-title" content="Ombre">
+<meta name="apple-mobile-web-app-title" content="Small gram">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@300;400;500;600&family=Cormorant+Garamond:ital,wght@0,300;0,400;1,300;1,400&display=swap" rel="stylesheet">
@@ -558,9 +558,9 @@ footer {
 <body>
 
 <!-- AUTH SCREEN -->
-<div id="auth-screen">
-  <div class="auth-logo">阴</div>
-  <div class="auth-title">Ombre · 阴影</div>
+<div id="auth-screen" class="hidden">
+  <div class="auth-logo">S</div>
+  <div class="auth-title">Small gram</div>
   <input class="auth-input" id="auth-input" type="password" placeholder="访问密钥" autocomplete="current-password">
   <button class="auth-btn" id="auth-btn">进入</button>
   <div class="auth-hint">在服务器 CHAT_SECRET 环境变量中设置密钥<br>留空则不需要密钥</div>
@@ -575,7 +575,7 @@ footer {
     </svg>
   </button>
   <div class="hdr-center">
-    <div class="contact-name">阴影</div>
+    <div class="contact-name">Small gram</div>
     <div class="contact-status" id="status-label">待机</div>
   </div>
   <button class="hdr-btn" id="call-btn" title="语音通话">
@@ -589,7 +589,7 @@ footer {
 <!-- MINI CALL BAR -->
 <div id="mini-call-bar" onclick="expandCall()">
   <div class="mini-avatar"></div>
-  <span class="mini-label">阴影</span>
+  <span class="mini-label">Small gram</span>
   <span class="mini-timer-txt" id="mini-timer">00:00</span>
   <button class="mini-end-btn" onclick="event.stopPropagation();closeCall()">
     <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
@@ -604,7 +604,7 @@ footer {
     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="6 9 12 15 18 9"/></svg>
   </button>
   <div class="call-avatar-lg"></div>
-  <div class="call-name">阴影</div>
+  <div class="call-name">Small gram</div>
   <div class="call-status" id="call-status-txt">正在连接…</div>
   <div class="call-timer" id="call-timer">00:00</div>
   <div class="call-controls">
@@ -695,7 +695,7 @@ localStorage.setItem('ombre_chatid', chatId);
 
 // ── AUTH ──────────────────────────────────────────────────────────────────────
 const authScreen = document.getElementById('auth-screen');
-if (cfg.secret) authScreen.classList.add('hidden');
+authScreen.classList.add('hidden');
 document.getElementById('auth-btn').onclick = () => {
   cfg.secret = document.getElementById('auth-input').value.trim();
   localStorage.setItem('ombre_secret', cfg.secret);
