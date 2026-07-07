@@ -219,7 +219,8 @@ app.post('/api/chat', auth, (req, res) => {
   };
 
   proc._listeners.add(onEvent);
-  sendMsg(proc, msgContent);
+  const bjTime = new Date().toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai', weekday: 'short', hour: '2-digit', minute: '2-digit', hour12: false });
+  sendMsg(proc, `[系统：现在北京时间 ${bjTime}]\n${msgContent}`);
 
   // 用 res.on('close') 而不是 req.on('close')：
   // POST body 读完后 req 会提前关闭，res 才代表 SSE 流的真实生命周期
