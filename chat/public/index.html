@@ -554,6 +554,50 @@ footer {
   font-family: 'Noto Serif SC', serif; font-size: 15px; cursor: pointer;
 }
 
+/* ── QUOTE ── */
+#quote-bar {
+  display: none;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 14px;
+  border-bottom: 1px solid var(--border);
+  background: rgba(76,99,120,0.06);
+  animation: enterAi 0.15s both;
+}
+#quote-bar.visible { display: flex; }
+.quote-bar-line {
+  width: 3px; height: 32px; border-radius: 2px;
+  background: var(--accent); flex-shrink: 0;
+}
+.quote-bar-text {
+  flex: 1; font-size: 13px; color: var(--text-secondary);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  line-height: 1.4;
+}
+.quote-bar-cancel {
+  border: none; background: none; cursor: pointer;
+  color: var(--text-secondary); font-size: 18px; padding: 0 2px;
+  flex-shrink: 0; line-height: 1;
+  -webkit-tap-highlight-color: transparent;
+}
+/* Quote block inside a bubble */
+.quote-block {
+  border-left: 3px solid rgba(76,99,120,0.35);
+  padding: 4px 8px;
+  margin-bottom: 6px;
+  border-radius: 0 6px 6px 0;
+  background: rgba(76,99,120,0.07);
+  font-size: 13px;
+  color: var(--text-secondary);
+  line-height: 1.4;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  max-width: 100%;
+}
+.msg.user .quote-block {
+  border-left-color: rgba(58,82,104,0.50);
+  background: rgba(58,82,104,0.10);
+}
+
 /* ── MOMENTS VIEW ── */
 #moments-view {
   position: fixed; inset: 0;
@@ -746,6 +790,11 @@ footer {
   <div id="sticker-panel">
     <div class="sticker-grid" id="sticker-grid"></div>
   </div>
+  <div id="quote-bar">
+    <div class="quote-bar-line"></div>
+    <div class="quote-bar-text" id="quote-bar-text"></div>
+    <button class="quote-bar-cancel" id="quote-cancel">×</button>
+  </div>
   <div class="input-row">
     <button class="footer-icon-btn" id="chat-mic-btn" title="语音输入">
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
@@ -922,7 +971,7 @@ function createMsgRow(role) {
   return { wrap, contentEl };
 }
 
-function appendMsg(role, text, thinking, time) {
+function appendMsg(role, text, thinking, time, quote) {
   const msgs = document.getElementById('messages');
   const { wrap, contentEl } = createMsgRow(role);
 
@@ -937,7 +986,18 @@ function appendMsg(role, text, thinking, time) {
 
   const bub = document.createElement('div');
   bub.className = 'bubble';
-  bub.textContent = text;
+  if (quote) {
+    const qb = document.createElement('div');
+    qb.className = 'quote-block';
+    qb.textContent = (quote.role === 'ai' ? '小克：' : '慢：') + quote.text;
+    bub.appendChild(qb);
+    const span = document.createElement('span');
+    span.textContent = text;
+    bub.appendChild(span);
+  } else {
+    bub.textContent = text;
+  }
+  addLongPress(bub, text);
   contentEl.appendChild(bub);
 
   const t = document.createElement('div');
@@ -952,6 +1012,43 @@ function appendMsg(role, text, thinking, time) {
 // ── RENDER HISTORY ────────────────────────────────────────────────────────────
 history.forEach(m => appendMsg(m.role, m.text, m.thinking, m.time));
 
+// ── QUOTE STATE ───────────────────────────────────────────────────────────────
+let activeQuote = null; // { role, text }
+
+function setQuote(role, text) {
+  activeQuote = { role, text };
+  document.getElementById('quote-bar-text').textContent =
+    (role === 'ai' ? '小克：' : '慢：') + text;
+  document.getElementById('quote-bar').classList.add('visible');
+  document.getElementById('input').focus();
+}
+function clearQuote() {
+  activeQuote = null;
+  document.getElementById('quote-bar').classList.remove('visible');
+}
+document.getElementById('quote-cancel').onclick = clearQuote;
+
+// 长按气泡触发引用
+function addLongPress(bub, text) {
+  let timer = null;
+  const start = (e) => {
+    timer = setTimeout(() => {
+      // 判断这条消息属于哪一方
+      const msgWrap = bub.closest('.msg');
+      const role = msgWrap && msgWrap.classList.contains('user') ? 'user' : 'ai';
+      setQuote(role, text.slice(0, 120));
+    }, 500);
+  };
+  const cancel = () => { clearTimeout(timer); timer = null; };
+  bub.addEventListener('touchstart', start, { passive: true });
+  bub.addEventListener('touchend', cancel);
+  bub.addEventListener('touchmove', cancel);
+  bub.addEventListener('mousedown', start);
+  bub.addEventListener('mouseup', cancel);
+  bub.addEventListener('mouseleave', cancel);
+  bub.addEventListener('contextmenu', e => { e.preventDefault(); });
+}
+
 // ── SEND ──────────────────────────────────────────────────────────────────────
 async function sendMessage() {
   const input = document.getElementById('input');
@@ -959,11 +1056,17 @@ async function sendMessage() {
   if (!text || isGenerating) return;
   input.value = '';
   input.style.height = '';
+  const quote = activeQuote;
+  clearQuote();
   const userTime = now();
-  appendMsg('user', text, null, userTime);
+  appendMsg('user', text, null, userTime, quote);
   history.push({ role:'user', text, time: userTime });
   saveHistory();
-  streamAI(text);
+  // 引用内容附加到发给 AI 的消息里
+  const aiText = quote
+    ? `「引用${quote.role === 'ai' ? '你说的' : '我说的'}："${quote.text}"」\n${text}`
+    : text;
+  streamAI(aiText);
 }
 
 // ── INPUT EVENTS ──────────────────────────────────────────────────────────────
@@ -1325,6 +1428,7 @@ async function streamAI(text, content, onComplete) {
         }
       }
 
+      addLongPress(aiBub, fullText);
       const aiTime = now();
       const timeEl = document.createElement('div');
       timeEl.className = 'msg-time';
