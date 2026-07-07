@@ -31,7 +31,9 @@ const procs = new Map();
 // 上下文压缩
 const msgCounts  = new Map();   // chatId -> 已发消息数
 const compressing = new Set();  // 正在压缩中的 chatId
+const recentMsgs = new Map();   // chatId -> [{role, text}]  最近几条原文
 const MSG_COMPRESS_THRESHOLD = 30;
+const RECENT_KEEP = 6;          // 压缩时保留最近几条原文
 
 // ─── Web Push ─────────────────────────────────────────────────────────────────
 const VAPID_FILE = path.join(__dirname, '.vapid.json');
@@ -177,9 +179,14 @@ async function compressContext(chatId) {
   try { oldProc.kill(); } catch {}
   msgCounts.set(chatId, 0);
 
-  // Step 3: 向（当前活跃的）进程注入摘要
+  // Step 3: 向（当前活跃的）进程注入摘要 + 最近原文
   // 若压缩期间用户发了新消息，procs 里已有新进程；否则自己 spawn
   const targetProc = procs.get(chatId) || spawnCC(chatId);
+  const savedRecent = (recentMsgs.get(chatId) || []).slice(-RECENT_KEEP);
+  recentMsgs.set(chatId, savedRecent);
+  const recentStr = savedRecent.length
+    ? '\n\n【最近几条原文，刚刚发生的】\n' + savedRecent.map(m => `${m.role}：${m.text}`).join('\n')
+    : '';
   try {
     await Promise.race([
       new Promise(resolve => {
@@ -187,7 +194,7 @@ async function compressContext(chatId) {
           if (ev.type === 'result') { targetProc._listeners.delete(listener); resolve(); }
         };
         targetProc._listeners.add(listener);
-        sendMsg(targetProc, `【系统提示-记忆恢复】以下是你（小克）和慢之前对话的摘要，请记住并延续：\n\n${summary}\n\n请只回复"嗯。"表示已记住。`);
+        sendMsg(targetProc, `【系统提示-记忆恢复】以下是你（小克）和慢之前对话的摘要，请记住并延续：\n\n${summary}${recentStr}\n\n请只回复"嗯。"表示已记住。`);
       }),
       new Promise(resolve => setTimeout(resolve, 30000)),
     ]);
@@ -219,6 +226,14 @@ app.post('/api/chat', auth, (req, res) => {
     res.write(`data: ${JSON.stringify(ev)}\n\n`);
     if (ev.type === 'result') {
       res.end();
+      // 记录小克的回复原文
+      const aiText = ev.result?.trim() || '';
+      if (aiText) {
+        const r = recentMsgs.get(chatId) || [];
+        r.push({ role: '小克', text: aiText });
+        if (r.length > RECENT_KEEP * 2) r.splice(0, r.length - RECENT_KEEP * 2);
+        recentMsgs.set(chatId, r);
+      }
       // 计数并在阈值后触发后台压缩（SSE 已关闭，对用户透明）
       const count = (msgCounts.get(chatId) || 0) + 1;
       msgCounts.set(chatId, count);
@@ -229,6 +244,13 @@ app.post('/api/chat', auth, (req, res) => {
   };
 
   proc._listeners.add(onEvent);
+
+  // 记录最近消息原文（用于压缩时保留上下文）
+  const recent = recentMsgs.get(chatId) || [];
+  recent.push({ role: '慢', text: msgContent });
+  if (recent.length > RECENT_KEEP * 2) recent.splice(0, recent.length - RECENT_KEEP * 2);
+  recentMsgs.set(chatId, recent);
+
   const bjTime = new Date().toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai', weekday: 'short', hour: '2-digit', minute: '2-digit', hour12: false });
   sendMsg(proc, `[系统：现在北京时间 ${bjTime}]\n${msgContent}`);
 
