@@ -454,6 +454,7 @@ footer {
   min-height: 40px;
   line-height: 1.45;
   field-sizing: content;
+  overflow-y: auto;
   outline: none;
   transition: border-color 0.15s, background 0.15s;
 }
@@ -950,6 +951,27 @@ footer {
   border: 2.5px solid rgba(255,255,255,0.18);
   box-shadow: 0 4px 16px rgba(58,82,104,0.35);
   flex-shrink: 0;
+}
+/* ── MSG CONTEXT MENU ── */
+.msg-ctx-menu {
+  position: fixed; z-index: 9100;
+  background: var(--bubble-ai-bg); border: 1px solid var(--border);
+  border-radius: 12px; box-shadow: 0 4px 24px rgba(0,0,0,0.18);
+  display: flex; overflow: hidden;
+}
+.msg-ctx-btn {
+  padding: 12px 20px; font-size: 14px; border: none;
+  background: none; color: var(--text-primary); cursor: pointer;
+  white-space: nowrap; border-right: 1px solid var(--border);
+  font-family: inherit;
+}
+.msg-ctx-btn:last-child { border-right: none; }
+.msg-ctx-btn:active { background: rgba(76,99,120,0.12); }
+.msg-ctx-btn.danger { color: #e05050; }
+.recalled-msg {
+  text-align: center; color: var(--text-secondary);
+  font-size: 12px; padding: 6px 0;
+  width: 100%; display: block;
 }
 /* ── NAV DROPDOWN ── */
 #nav-dropdown {
@@ -1493,9 +1515,9 @@ function createMsgRow(role) {
 function appendMsg(role, text, thinking, time, quote) {
   const msgs = document.getElementById('messages');
 
-  // AI multi-part: split on --- and recurse (no auto-play for history)
+  // AI multi-part: split on --- or blank lines, recurse into separate bubbles
   if (role === 'ai' && !quote) {
-    const parts = text.trim().split(/^[ \t]*-{3,}[ \t]*$/m).map(p => p.trim()).filter(Boolean);
+    const parts = text.trim().split(/(?:^[ \t]*-{3,}[ \t]*$|\n\n)/m).map(p => p.trim()).filter(Boolean);
     if (parts.length > 1) {
       parts.forEach((part, idx) => appendMsg(role, part, idx === 0 ? thinking : null, time, null));
       return;
@@ -1579,15 +1601,16 @@ function appendMsg(role, text, thinking, time, quote) {
 }
 
 // ── RENDER HISTORY ────────────────────────────────────────────────────────────
-history.forEach(m => appendMsg(m.role, m.text, m.thinking, m.time));
+history.forEach(m => appendMsg(m.role, m.text, m.thinking, m.time, m.quote));
 
 // ── QUOTE STATE ───────────────────────────────────────────────────────────────
 let activeQuote = null; // { role, text }
 
 function setQuote(role, text) {
   activeQuote = { role, text };
+  const display = text.length > 40 ? text.slice(0, 40) + '…' : text;
   document.getElementById('quote-bar-text').textContent =
-    (role === 'ai' ? '小克：' : '慢：') + text;
+    (role === 'ai' ? '小克：' : '慢：') + display;
   document.getElementById('quote-bar').classList.add('visible');
   document.getElementById('input').focus();
 }
@@ -1597,17 +1620,55 @@ function clearQuote() {
 }
 document.getElementById('quote-cancel').onclick = clearQuote;
 
-// 长按气泡触发引用
+// 长按气泡：弹出菜单（引用 / 撤回）
+function showMsgCtxMenu(bub, text) {
+  const existing = document.getElementById('msg-ctx-menu');
+  if (existing) existing.remove();
+  const msgWrap = bub.closest('.msg');
+  const isUser = msgWrap && msgWrap.classList.contains('user');
+  const role = isUser ? 'user' : 'ai';
+
+  const menu = document.createElement('div');
+  menu.id = 'msg-ctx-menu';
+  menu.className = 'msg-ctx-menu';
+
+  const quoteBtn = document.createElement('button');
+  quoteBtn.className = 'msg-ctx-btn';
+  quoteBtn.textContent = '引用';
+  quoteBtn.onclick = () => { menu.remove(); setQuote(role, text.slice(0, 120)); };
+  menu.appendChild(quoteBtn);
+
+  if (isUser) {
+    const recallBtn = document.createElement('button');
+    recallBtn.className = 'msg-ctx-btn danger';
+    recallBtn.textContent = '撤回';
+    recallBtn.onclick = () => {
+      menu.remove();
+      if (msgWrap) {
+        msgWrap.classList.add('recalled');
+        msgWrap.innerHTML = '<span class="recalled-msg">你撤回了一条消息</span>';
+      }
+    };
+    menu.appendChild(recallBtn);
+  }
+
+  document.body.appendChild(menu);
+  const rect = bub.getBoundingClientRect();
+  const mw = menu.offsetWidth || 160;
+  const mh = menu.offsetHeight || 44;
+  let left = rect.left + rect.width / 2 - mw / 2;
+  let top = rect.top - mh - 8;
+  if (top < 60) top = rect.bottom + 8;
+  menu.style.left = Math.max(8, Math.min(left, window.innerWidth - mw - 8)) + 'px';
+  menu.style.top = top + 'px';
+
+  const dismiss = ev => { if (!menu.contains(ev.target)) { menu.remove(); document.removeEventListener('pointerdown', dismiss); } };
+  setTimeout(() => document.addEventListener('pointerdown', dismiss), 50);
+}
+
 function addLongPress(bub, text) {
   let timer = null;
-  const start = (e) => {
-    timer = setTimeout(() => {
-      // 判断这条消息属于哪一方
-      const msgWrap = bub.closest('.msg');
-      const role = msgWrap && msgWrap.classList.contains('user') ? 'user' : 'ai';
-      setQuote(role, text.slice(0, 120));
-    }, 500);
-  };
+  const start = () => { timer = setTimeout(() => showMsgCtxMenu(bub, text), 500); };
   const cancel = () => { clearTimeout(timer); timer = null; };
   bub.addEventListener('touchstart', start, { passive: true });
   bub.addEventListener('touchend', cancel);
@@ -1615,7 +1676,7 @@ function addLongPress(bub, text) {
   bub.addEventListener('mousedown', start);
   bub.addEventListener('mouseup', cancel);
   bub.addEventListener('mouseleave', cancel);
-  bub.addEventListener('contextmenu', e => { e.preventDefault(); });
+  bub.addEventListener('contextmenu', e => e.preventDefault());
 }
 
 // ── SEND ──────────────────────────────────────────────────────────────────────
@@ -1630,7 +1691,7 @@ async function sendMessage() {
   clearQuote();
   const userTime = now();
   appendMsg('user', text, null, userTime, quote);
-  history.push({ role:'user', text, time: userTime });
+  history.push({ role:'user', text, time: userTime, quote: quote || undefined });
   saveHistory();
   // 引用内容附加到发给 AI 的消息里
   const aiText = quote
@@ -1644,6 +1705,16 @@ document.getElementById('send-btn').onclick = sendMessage;
 document.getElementById('input').addEventListener('keydown', e => {
   if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
 });
+// 输入框自动撑高（兼容不支持 field-sizing 的浏览器）
+(function() {
+  const inp = document.getElementById('input');
+  function resize() {
+    inp.style.height = 'auto';
+    inp.style.height = Math.min(inp.scrollHeight, 120) + 'px';
+  }
+  inp.addEventListener('input', resize);
+  inp.addEventListener('compositionend', resize);
+})();
 
 // ── CHAT MIC (按住发语音) ─────────────────────────────────────────────────────
 let chatRecognition = null;
