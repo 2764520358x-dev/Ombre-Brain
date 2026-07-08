@@ -2102,8 +2102,8 @@ async function streamAI(text, content, onComplete, onSentence) {
       }
       const trimmed = fullText.trim();
 
-      // 多条消息：按独占一行的 --- 拆分，每条独立气泡，错开出现
-      const parts = trimmed.split(/^[ \t]*-{3,}[ \t]*$/m).map(p => p.trim()).filter(Boolean);
+      // 多条消息：按 --- 或空行拆分，每条独立气泡，错开出现
+      const parts = trimmed.split(/(?:^[ \t]*-{3,}[ \t]*$|\n\s*\n)/m).map(p => p.trim()).filter(Boolean);
       if (parts.length > 1) {
         aiWrap.remove();
         parts.forEach((part, i) => {
