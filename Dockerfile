@@ -9,7 +9,7 @@
 #     -e OMBRE_COMPRESS_API_KEY=your-llm-key \
 #     -e OMBRE_EMBED_API_KEY=your-gemini-key \
 #     -e OMBRE_DASHBOARD_PASSWORD=xxx \
-#     -p 8000:8000 ombre-brain
+#     -p 18001:8000 ombre-brain          # 对外 18001 → 容器内 8000
 # 推荐用 deploy/docker-compose.yml（开发）或 deploy/docker-compose.user.yml（用户）启动。
 # ============================================================
 
@@ -17,16 +17,19 @@ FROM python:3.12-slim
 
 WORKDIR /app
 
-# Install cloudflared + curl (for downloading cloudflared)
-# 安装 cloudflared（用于 Tunnel 一键管理功能）
-RUN apt-get update && apt-get install -y --no-install-recommends curl ca-certificates \
-    && ARCH=$(dpkg --print-architecture) \
-    && curl -fsSL "https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-${ARCH}" \
-       -o /usr/local/bin/cloudflared \
-    && chmod +x /usr/local/bin/cloudflared \
-    && apt-get remove -y curl \
-    && apt-get autoremove -y \
-    && rm -rf /var/lib/apt/lists/*
+# cloudflared（用于 Dashboard 的 Tunnel 一键管理）。
+# 用镜像自带的 python 直接从 GitHub Releases 下载（带重试），不装 curl、不跑
+# apt-get update —— 从根上避开 Debian 镜像源间歇性 502 导致的构建失败（用户反馈 #3）。
+# 不需要 Tunnel 的用户可 `docker build --build-arg INSTALL_CLOUDFLARED=0 ...` 完全跳过。
+ARG INSTALL_CLOUDFLARED=1
+COPY deploy/fetch_cloudflared.py /tmp/fetch_cloudflared.py
+RUN if [ "$INSTALL_CLOUDFLARED" = "1" ]; then \
+        python /tmp/fetch_cloudflared.py /usr/local/bin/cloudflared \
+        && chmod +x /usr/local/bin/cloudflared; \
+    else \
+        echo "[build] INSTALL_CLOUDFLARED=0 → 跳过 cloudflared（Tunnel 一键管理将不可用）"; \
+    fi; \
+    rm -f /tmp/fetch_cloudflared.py
 
 # Install dependencies first (leverage Docker cache)
 # 先装依赖（利用 Docker 缓存）
@@ -48,6 +51,9 @@ VOLUME ["/app/buckets"]
 # Default to streamable-http for container (remote access)
 # 容器场景默认用 streamable-http
 ENV OMBRE_TRANSPORT=streamable-http
+# 容器内固定监听 8000；对外通过 host 端口映射 18001:8000 暴露（保持 Cloudflare
+# ingress 指向 :8000 不变）。裸机（非容器）不读此 ENV，走 server.py 默认 18001。
+ENV OMBRE_PORT=8000
 ENV OMBRE_BUCKETS_DIR=/app/buckets
 # config 默认落在持久卷 /app/buckets 里，而不是镜像可写层 /app/config.yaml。
 # 关键：很多 PaaS（Zeabur / 部分 Render 配置等）用**只读根文件系统**，只有挂载的卷可写——
