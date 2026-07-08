@@ -15,7 +15,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 const PORT        = parseInt(process.env.PORT        || '3000', 10);
 const CHAT_SECRET = process.env.CHAT_SECRET          || '';
-const MODEL              = process.env.MODEL                || 'opus';
+const MODEL              = process.env.MODEL                || 'sonnet';
 const AZURE_SPEECH_KEY   = process.env.AZURE_SPEECH_KEY    || '';
 const AZURE_SPEECH_REGION= process.env.AZURE_SPEECH_REGION || 'southeastasia';
 const MCP_CONFIG  = path.join(__dirname, '.mcp.json');
@@ -32,8 +32,8 @@ const procs = new Map();
 const msgCounts  = new Map();   // chatId -> 已发消息数
 const compressing = new Set();  // 正在压缩中的 chatId
 const recentMsgs = new Map();   // chatId -> [{role, text}]  最近几条原文
-const MSG_COMPRESS_THRESHOLD = 30;
-const RECENT_KEEP = 6;          // 压缩时保留最近几条原文
+const MSG_COMPRESS_THRESHOLD = 60;
+const RECENT_KEEP = 12;         // 压缩时保留最近几条原文
 
 // 情绪状态
 const lastMsgTime = new Map();  // chatId -> timestamp（慢最后发消息的时间）
@@ -177,7 +177,7 @@ async function compressContext(chatId) {
           if (ev.type === 'result') { oldProc._listeners.delete(listener); resolve(); }
         };
         oldProc._listeners.add(listener);
-        sendMsg(oldProc, '【系统压缩】请用150字以内总结你和慢到目前为止对话的重点：聊过的话题、重要的情感时刻、你们之间的特别细节和约定。只输出摘要正文，不加任何前缀和解释。');
+        sendMsg(oldProc, '【系统压缩】请用400字以内总结你和慢到目前为止对话的重点：聊过的话题、情感脉络、重要的细节、约定、她说过的事、你说过的话。尽量保留具体内容，不要泛泛而谈。只输出摘要正文，不加任何前缀和解释。');
       }),
       new Promise(resolve => setTimeout(resolve, 60000)),
     ]);
