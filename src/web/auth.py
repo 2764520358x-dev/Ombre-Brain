@@ -11,6 +11,8 @@ web/auth.py — Dashboard 鉴权相关 HTTP 路由
 """
 
 import os
+import secrets
+import time
 
 from starlette.requests import Request
 from starlette.responses import Response
@@ -172,3 +174,20 @@ def register(mcp) -> None:
             return JSONResponse({"error": "问题和答案不能为空"}, status_code=400)
         sh._save_security_qa(question, answer)
         return JSONResponse({"ok": True})
+
+    @mcp.custom_route("/api/mcp-token", methods=["POST"])
+    async def api_mcp_token(request: Request) -> Response:
+        """Generate a long-lived MCP Bearer token by providing the dashboard password."""
+        from starlette.responses import JSONResponse
+        from web.oauth import _mcp_tokens, _save_mcp_tokens, _MCP_TOKEN_TTL
+        try:
+            body = await request.json()
+        except Exception:
+            return JSONResponse({"error": "Invalid JSON"}, status_code=400)
+        password = body.get("password", "")
+        if not sh._verify_any_password(password):
+            return JSONResponse({"error": "密码错误"}, status_code=401)
+        token = secrets.token_hex(32)
+        _mcp_tokens[token] = time.time() + _MCP_TOKEN_TTL
+        _save_mcp_tokens()
+        return JSONResponse({"token": token, "mcp_url": str(request.base_url).rstrip("/") + "/mcp"})
