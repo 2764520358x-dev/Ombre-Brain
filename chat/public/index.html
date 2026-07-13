@@ -1,0 +1,3077 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, viewport-fit=cover">
+<title>Small gram</title>
+<meta name="theme-color" content="#F7F7F7">
+<link rel="manifest" href="/manifest.json">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Small gram">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@300;400;500;600&family=Cormorant+Garamond:ital,wght@0,300;0,400;1,300;1,400&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg:              #F0F3F7;
+  --bg-scrim:        linear-gradient(160deg, #E8EDF4 0%, #F2F5FA 50%, #E4EAF2 100%);
+  --bubble-ai-bg:    #FFFFFF;
+  --bubble-ai-color: #2A3040;
+  --bubble-user-bg:  #D8E4F0;
+  --bubble-user-color: #1E2C3A;
+  --send-bg:         #3A5268;
+  --accent:          #4C6378;
+  --header-bg:       rgba(240,243,247,0.82);
+  --footer-bg:       rgba(240,243,247,0.90);
+  --border:          rgba(100,120,150,0.14);
+  --text-primary:    #1E2C3A;
+  --text-secondary:  #7A8A9A;
+  --time-bg:         rgba(80,100,130,0.10);
+}
+
+*,*::before,*::after { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+html,body { height:100%; overflow:hidden; }
+
+body {
+  font-family: 'Noto Serif SC', 'PingFang SC', -apple-system, serif;
+  background: var(--bg);
+  color: var(--text-primary);
+  display: flex;
+  flex-direction: column;
+  height: 100dvh;
+  max-width: 640px;
+  margin: 0 auto;
+}
+
+/* ── HEADER ── */
+header {
+  display: flex;
+  align-items: center;
+  padding: calc(env(safe-area-inset-top,0px) + 10px) 8px 10px;
+  background: var(--header-bg);
+  backdrop-filter: blur(18px) saturate(1.3);
+  -webkit-backdrop-filter: blur(18px) saturate(1.3);
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+  gap: 4px;
+  min-height: 56px;
+}
+.hdr-btn {
+  width: 40px; height: 40px;
+  border: none; background: none;
+  cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  color: var(--accent);
+  border-radius: 50%;
+  flex-shrink: 0;
+  transition: background 0.15s;
+}
+.hdr-btn:active { background: rgba(76,99,120,0.10); }
+.hdr-center {
+  flex: 1;
+  text-align: center;
+  display: flex; flex-direction: column; gap: 2px;
+}
+.contact-name {
+  font-family: 'Cormorant Garamond', 'Noto Serif SC', serif;
+  font-size: 18px; font-weight: 400; letter-spacing: 0.04em;
+  color: var(--text-primary);
+}
+.contact-status { font-size: 11px; color: var(--text-secondary); letter-spacing: 0.03em; }
+#status-dot { display: none; }
+
+/* ── MESSAGES ── */
+#messages {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px 0 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  background: var(--bg-scrim);
+  overscroll-behavior: contain;
+}
+#messages::-webkit-scrollbar { width: 0; }
+
+.time-sep {
+  align-self: center;
+  font-family: 'Noto Serif SC', serif;
+  font-size: 11px;
+  color: var(--text-secondary);
+  background: var(--time-bg);
+  padding: 2px 10px;
+  border-radius: 20px;
+  margin: 8px 0;
+  letter-spacing: 0.03em;
+}
+
+.msg {
+  display: flex;
+  flex-direction: row;
+  align-items: flex-start;
+  padding: 4px 14px;
+  gap: 10px;
+  max-width: 100%;
+}
+.msg.ai { animation: enterAi 0.22s cubic-bezier(0.25,0.8,0.25,1) both; }
+.msg.user { flex-direction: row-reverse; animation: enterHuman 0.22s cubic-bezier(0.25,0.8,0.25,1) both; }
+
+@keyframes enterAi {
+  from { opacity:0; transform: translateX(-10px) translateY(4px); }
+  to   { opacity:1; transform: none; }
+}
+@keyframes enterHuman {
+  from { opacity:0; transform: translateX(10px) translateY(4px); }
+  to   { opacity:1; transform: none; }
+}
+
+/* Avatar */
+.ai-avatar {
+  width: 38px; height: 38px;
+  border-radius: 8px;
+  background: linear-gradient(135deg, #3A5268, #5A7898);
+  color: rgba(255,255,255,0.85);
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+  align-self: flex-start;
+  user-select: none;
+  font-size: 13px;
+  letter-spacing: 0.02em;
+  box-shadow: 0 2px 8px rgba(58,82,104,0.25);
+}
+
+/* Content column */
+.msg-content {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-width: calc(100% - 56px);
+}
+.msg.user .msg-content { align-items: flex-end; }
+
+/* Bubble */
+.bubble {
+  position: relative;
+  padding: 10px 15px;
+  line-height: 1.60;
+  font-size: 15.5px;
+  white-space: pre-wrap;
+  word-break: break-word;
+  border-radius: 16px;
+}
+
+/* AI bubble — off-white, subtle left indent */
+.msg.ai .bubble {
+  background: var(--bubble-ai-bg);
+  color: var(--bubble-ai-color);
+  border-radius: 4px 16px 16px 16px;
+  box-shadow: 0 1px 6px rgba(60,80,110,0.08), 0 0 0 1px rgba(60,80,110,0.05);
+}
+
+/* User bubble — muted slate blue */
+.msg.user .bubble {
+  background: var(--bubble-user-bg);
+  color: var(--bubble-user-color);
+  border-radius: 16px 4px 16px 16px;
+  box-shadow: 0 1px 6px rgba(60,80,110,0.10), 0 0 0 1px rgba(60,80,110,0.07);
+}
+
+/* Streaming cursor */
+.bubble.streaming::after {
+  content: '▍';
+  animation: blink 0.8s step-end infinite;
+  color: var(--accent);
+  font-size: 14px;
+}
+@keyframes blink { 0%,100%{opacity:1} 50%{opacity:0} }
+
+/* Thinking block */
+.thinking-wrap {
+  background: rgba(76,99,120,0.05);
+  border: 1px solid rgba(76,99,120,0.12);
+  border-radius: 10px;
+  overflow: hidden;
+  font-size: 13px;
+  max-width: 100%;
+}
+.thinking-hdr {
+  display: flex; align-items: center; gap: 4px;
+  padding: 6px 10px;
+  cursor: pointer;
+  color: var(--text-secondary);
+  font-size: 12px;
+  user-select: none;
+  letter-spacing: 0.02em;
+}
+.thinking-hdr .arr { transition: transform 0.2s; font-size: 10px; }
+.thinking-wrap.open .arr { transform: rotate(90deg); }
+.thinking-body {
+  display: none;
+  padding: 8px 10px;
+  color: var(--text-secondary);
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-size: 12px;
+  border-top: 1px solid rgba(76,99,120,0.10);
+}
+.thinking-wrap.open .thinking-body { display: block; }
+
+/* Time + retry */
+.msg-time { font-size: 11px; color: var(--text-secondary); padding: 0 2px; letter-spacing: 0.02em; }
+.msg.user .msg-time { text-align: right; }
+.retry-notice {
+  align-self: center;
+  font-size: 12px; color: var(--text-secondary);
+  background: var(--time-bg);
+  border-radius: 20px;
+  padding: 3px 12px; margin: 4px 0;
+}
+
+/* ── INPUT BAR ── */
+footer {
+  background: var(--footer-bg);
+  backdrop-filter: blur(18px) saturate(1.3);
+  -webkit-backdrop-filter: blur(18px) saturate(1.3);
+  border-top: 1px solid var(--border);
+  padding: 8px 14px;
+  padding-bottom: max(10px, env(safe-area-inset-bottom));
+  flex-shrink: 0;
+  position: relative;
+}
+.input-row { display: flex; align-items: flex-end; gap: 8px; }
+
+/* Sticker panel */
+#sticker-panel {
+  display: none;
+  padding: 10px 4px 4px;
+  border-top: 1px solid var(--border);
+  margin-bottom: 8px;
+}
+#sticker-panel.open { display: block; }
+.sticker-grid {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 2px;
+}
+.sticker-item {
+  font-size: 34px;
+  text-align: center;
+  padding: 6px 2px;
+  border-radius: 8px;
+  cursor: pointer;
+  line-height: 1;
+  -webkit-tap-highlight-color: transparent;
+}
+.sticker-item:active { background: rgba(76,99,120,0.10); }
+
+/* Footer icon buttons */
+.footer-icon-btn {
+  width: 38px; height: 38px;
+  border-radius: 50%;
+  border: none;
+  background: rgba(76,99,120,0.10);
+  color: var(--accent);
+  cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+  font-size: 18px;
+  transition: background 0.15s;
+}
+.footer-icon-btn:active { background: rgba(76,99,120,0.18); }
+
+/* ── HEARTBEAT OVERLAY ── */
+#heart-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  z-index: 9000;
+  background: rgba(10,8,20,0.90);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 22px;
+}
+#heart-overlay.open { display: flex; }
+.heart-title {
+  font-family: 'Cormorant Garamond', serif;
+  font-size: 20px;
+  color: rgba(255,255,255,0.6);
+  letter-spacing: 0.08em;
+}
+#heart-tap-btn {
+  width: 170px; height: 170px;
+  background: none; border: none; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  position: relative;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+.heart-svg {
+  width: 120px; height: 120px;
+  fill: #E8455A;
+  filter: drop-shadow(0 0 28px rgba(232,69,90,0.55));
+  transition: transform 0.08s ease;
+  transform-origin: center;
+  pointer-events: none;
+}
+#heart-tap-btn:active .heart-svg { transform: scale(0.84); }
+.heart-ring {
+  position: absolute; inset: 0;
+  border-radius: 50%;
+  border: 2.5px solid rgba(232,69,90,0.45);
+  pointer-events: none;
+}
+@keyframes hring {
+  0%   { transform: scale(1);   opacity: 0.7; }
+  100% { transform: scale(1.85); opacity: 0; }
+}
+.heart-ring.pop { animation: hring 0.55s ease-out forwards; }
+.heart-hint {
+  font-size: 15px;
+  color: rgba(255,255,255,0.45);
+  letter-spacing: 0.04em;
+  min-height: 22px;
+}
+#heart-bpm-display {
+  font-family: 'Cormorant Garamond', serif;
+  font-size: 58px; font-weight: 300;
+  color: #fff;
+  display: flex; align-items: flex-end; gap: 8px;
+  min-height: 70px;
+}
+#heart-bpm-display .bpm-unit {
+  font-size: 18px; color: rgba(255,255,255,0.45);
+  padding-bottom: 10px;
+}
+#heart-send-btn {
+  display: none;
+  background: #E8455A; color: #fff;
+  border: none; border-radius: 28px;
+  padding: 13px 36px;
+  font-size: 16px; font-family: 'Noto Serif SC', serif;
+  cursor: pointer; letter-spacing: 0.05em;
+}
+#heart-send-btn.show { display: block; }
+#heart-cancel-btn {
+  background: none; border: none;
+  color: rgba(255,255,255,0.28);
+  font-size: 14px; cursor: pointer;
+  padding: 6px 20px;
+  font-family: 'Noto Serif SC', serif;
+  letter-spacing: 0.04em;
+}
+
+/* ── MORE TRAY ── */
+#more-tray {
+  display: none;
+  justify-content: space-around;
+  padding: 14px 8px 10px;
+  border-top: 1px solid var(--border);
+  margin-bottom: 2px;
+}
+#more-tray.open { display: flex; }
+.tray-item {
+  display: flex; flex-direction: column; align-items: center; gap: 7px;
+  cursor: pointer;
+}
+.tray-icon-btn {
+  width: 54px; height: 54px;
+  border-radius: 15px;
+  border: none;
+  background: rgba(76,99,120,0.10);
+  color: var(--accent);
+  display: flex; align-items: center; justify-content: center;
+  transition: background 0.15s;
+}
+.tray-icon-btn:active { background: rgba(76,99,120,0.22); }
+.tray-label {
+  font-size: 11px;
+  color: var(--text-secondary);
+  letter-spacing: 0.03em;
+}
+#more-btn { transition: transform 0.2s; }
+#more-btn.open { transform: rotate(45deg); }
+
+/* Sticker bubble — transparent, big emoji */
+.bubble.sticker {
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  font-size: 56px;
+  line-height: 1;
+  padding: 4px 0 !important;
+}
+.bubble.sticker::before, .bubble.sticker::after { display: none !important; }
+
+/* AI voice play button */
+.bubble-play-btn {
+  border: none; background: rgba(76,99,120,0.08);
+  border-radius: 14px; padding: 4px 12px;
+  font-size: 13px; cursor: pointer; color: var(--accent);
+  align-self: flex-start; margin-top: 2px;
+  -webkit-tap-highlight-color: transparent;
+  transition: background 0.15s;
+  letter-spacing: 0.02em;
+}
+.bubble-play-btn:active { background: rgba(76,99,120,0.15); }
+.bubble-play-btn.playing { background: rgba(58,82,104,0.15); color: var(--send-bg); }
+
+/* Voice message bubble */
+.bubble.voice-msg {
+  display: flex; align-items: center; gap: 8px;
+  min-width: 110px; max-width: 180px;
+  padding: 10px 14px !important;
+}
+.voice-bars {
+  letter-spacing: 1px; font-size: 11px;
+  color: rgba(76,99,120,0.45); flex: 1;
+  line-height: 1;
+}
+.voice-dur { font-size: 14px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+/* Image bubble */
+.bubble img.chat-img {
+  max-width: 200px;
+  max-height: 200px;
+  border-radius: 10px;
+  display: block;
+}
+#input {
+  flex: 1;
+  background: rgba(255,255,255,0.70);
+  border: 1px solid var(--border);
+  border-radius: 22px;
+  padding: 9px 16px;
+  font-family: 'Noto Serif SC', serif;
+  font-size: 15.5px;
+  color: var(--text-primary);
+  resize: none;
+  max-height: 120px;
+  min-height: 40px;
+  line-height: 1.45;
+  field-sizing: content;
+  overflow-y: auto;
+  outline: none;
+  transition: border-color 0.15s, background 0.15s;
+}
+#input:focus { border-color: rgba(76,99,120,0.30); background: rgba(255,255,255,0.88); }
+#input::placeholder { color: rgba(76,99,120,0.40); }
+#send-btn {
+  width: 40px; height: 40px;
+  border-radius: 50%;
+  border: none;
+  background: var(--send-bg);
+  color: rgba(255,255,255,0.92);
+  cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+  transition: all 0.15s;
+  box-shadow: 0 2px 8px rgba(58,82,104,0.30);
+}
+#send-btn:disabled { background: rgba(76,99,120,0.25); box-shadow: none; cursor: default; }
+#send-btn:not(:disabled):active { transform: scale(0.88); }
+
+/* ── CALL SCREEN ── */
+#call-screen {
+  position: fixed; inset: 0;
+  background: linear-gradient(180deg, #1A2030, #0D1520);
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  z-index: 150;
+  opacity: 0; pointer-events: none;
+  transition: opacity 0.3s;
+  gap: 12px;
+}
+#call-screen.active { opacity: 1; pointer-events: auto; }
+.call-avatar-lg {
+  width: 96px; height: 96px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #3A5268, #5A7898);
+  border: 3px solid rgba(255,255,255,0.12);
+  margin-bottom: 8px;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+}
+.call-name {
+  font-family: 'Cormorant Garamond', serif;
+  font-size: 28px; font-weight: 300; color: rgba(255,255,255,0.92);
+  letter-spacing: 0.06em;
+}
+.call-status { font-size: 14px; color: rgba(255,255,255,0.45); letter-spacing: 0.04em; }
+.call-timer { font-size: 16px; color: rgba(255,255,255,0.60); margin-bottom: 40px; font-variant-numeric: tabular-nums; }
+.call-controls { display: flex; gap: 48px; align-items: center; }
+.call-mic-btn {
+  width: 68px; height: 68px; border-radius: 50%;
+  border: none; background: rgba(58,130,100,0.75); color: #fff;
+  cursor: pointer; display: flex; align-items: center; justify-content: center;
+  transition: background 0.2s;
+  backdrop-filter: blur(8px);
+}
+.call-mic-btn.listening { background: rgba(180,60,60,0.80); animation: cpulse 1.2s ease infinite; }
+.call-mic-btn.disabled { background: rgba(80,80,80,0.50); cursor: default; }
+@keyframes cpulse {
+  0%,100% { box-shadow: 0 0 0 0 rgba(180,60,60,0.5); }
+  60% { box-shadow: 0 0 0 18px rgba(180,60,60,0); }
+}
+.call-end-btn {
+  width: 68px; height: 68px; border-radius: 50%;
+  border: none; background: rgba(190,50,50,0.75); color: #fff;
+  cursor: pointer; display: flex; align-items: center; justify-content: center;
+  backdrop-filter: blur(8px);
+}
+.call-vol-btn {
+  width: 48px; height: 48px; border-radius: 50%;
+  border: none; background: rgba(255,255,255,0.10); color: rgba(255,255,255,0.75);
+  cursor: pointer; display: flex; align-items: center; justify-content: center;
+  font-size: 20px;
+  backdrop-filter: blur(8px);
+}
+
+/* ── MINI CALL BAR ── */
+#mini-call-bar {
+  display: none;
+  position: fixed;
+  top: max(env(safe-area-inset-top,0px), 6px);
+  left: 50%; transform: translateX(-50%);
+  background: rgba(42,65,88,0.90);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  color: rgba(255,255,255,0.90);
+  padding: 7px 10px 7px 8px;
+  border-radius: 24px;
+  align-items: center;
+  gap: 8px;
+  z-index: 140;
+  cursor: pointer;
+  box-shadow: 0 4px 18px rgba(0,0,0,0.30);
+  min-width: 190px;
+  user-select: none;
+  border: 1px solid rgba(255,255,255,0.10);
+}
+#mini-call-bar.active { display: flex; }
+.mini-avatar {
+  width: 26px; height: 26px; border-radius: 50%;
+  background: linear-gradient(135deg, #3A5268, #5A7898); flex-shrink: 0;
+}
+.mini-label { font-size: 13px; font-weight: 500; flex: 1; letter-spacing: 0.03em; }
+.mini-timer-txt { font-size: 13px; font-variant-numeric: tabular-nums; opacity: 0.75; }
+.mini-end-btn {
+  width: 28px; height: 28px; border-radius: 50%;
+  background: rgba(190,50,50,0.80); border: none; color: #fff;
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0; cursor: pointer;
+}
+
+/* ── AUTH SCREEN ── */
+#auth-screen {
+  position: fixed; inset: 0;
+  background: var(--bg-scrim);
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  gap: 18px; padding: 32px; z-index: 100;
+}
+#auth-screen.hidden { display: none; }
+.auth-logo {
+  width: 80px; height: 80px;
+  border-radius: 22px;
+  background: linear-gradient(135deg, #3A5268, #6A8CAA);
+  display: flex; align-items: center; justify-content: center;
+  font-family: 'Cormorant Garamond', serif;
+  font-size: 32px; color: rgba(255,255,255,0.90); font-weight: 300;
+  letter-spacing: 0.04em;
+  box-shadow: 0 6px 24px rgba(58,82,104,0.30);
+}
+.auth-title {
+  font-family: 'Cormorant Garamond', serif;
+  font-size: 22px; font-weight: 300;
+  letter-spacing: 0.08em; color: var(--text-primary);
+}
+.auth-input {
+  width: 100%; max-width: 300px;
+  padding: 12px 18px;
+  border: 1px solid var(--border);
+  border-radius: 24px;
+  background: rgba(255,255,255,0.72);
+  font-family: 'Noto Serif SC', serif; font-size: 15px;
+  color: var(--text-primary); outline: none;
+}
+.auth-btn {
+  width: 100%; max-width: 300px;
+  padding: 13px;
+  background: var(--send-bg);
+  color: rgba(255,255,255,0.92);
+  border: none; border-radius: 24px;
+  font-family: 'Noto Serif SC', serif; font-size: 15px;
+  cursor: pointer; font-weight: 400;
+  letter-spacing: 0.04em;
+  box-shadow: 0 4px 14px rgba(58,82,104,0.28);
+}
+.auth-hint { font-size: 12px; color: var(--text-secondary); text-align: center; letter-spacing: 0.02em; }
+
+/* ── SETTINGS PANEL ── */
+#settings {
+  position: fixed; inset: 0;
+  background: rgba(20,30,45,0.45);
+  display: flex; align-items: flex-end;
+  z-index: 50;
+  opacity: 0; pointer-events: none;
+  transition: opacity 0.2s;
+  backdrop-filter: blur(3px);
+  -webkit-backdrop-filter: blur(3px);
+}
+#settings.open { opacity:1; pointer-events:auto; }
+.settings-sheet {
+  width: 100%; max-width: 640px; margin: 0 auto;
+  background: rgba(236,240,246,0.96);
+  backdrop-filter: blur(24px) saturate(1.4);
+  -webkit-backdrop-filter: blur(24px) saturate(1.4);
+  border-radius: 20px 20px 0 0;
+  border-top: 1px solid rgba(255,255,255,0.60);
+  padding: 20px 20px max(20px,env(safe-area-inset-bottom));
+  transform: translateY(100%);
+  transition: transform 0.28s cubic-bezier(0.25,0.8,0.25,1);
+  display: flex; flex-direction: column; gap: 12px;
+}
+#settings.open .settings-sheet { transform: none; }
+.settings-title {
+  font-family: 'Cormorant Garamond', serif;
+  font-size: 17px; font-weight: 400;
+  text-align: center; padding-bottom: 4px;
+  letter-spacing: 0.04em; color: var(--text-primary);
+}
+.settings-divider { height: 1px; background: var(--border); }
+.settings-row {
+  display: flex; align-items: center; justify-content: space-between;
+  font-size: 15px;
+}
+.settings-row input[type=text] {
+  background: rgba(255,255,255,0.75);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 6px 10px;
+  font-family: 'Noto Serif SC', serif; font-size: 14px;
+  color: var(--text-primary); outline: none;
+}
+.danger-btn {
+  width: 100%; padding: 13px;
+  background: rgba(180,60,60,0.80); color: rgba(255,255,255,0.92);
+  border: none; border-radius: 20px;
+  font-family: 'Noto Serif SC', serif; font-size: 15px;
+  cursor: pointer; font-weight: 400;
+  letter-spacing: 0.03em;
+}
+.settings-cancel {
+  width: 100%; padding: 13px;
+  background: rgba(255,255,255,0.70); color: var(--text-primary);
+  border: 1px solid var(--border); border-radius: 20px;
+  font-family: 'Noto Serif SC', serif; font-size: 15px; cursor: pointer;
+}
+
+/* ── MUSIC PANEL ── */
+#music-panel {
+  position: fixed; inset: 0;
+  background: var(--bg-scrim);
+  display: flex; flex-direction: column;
+  z-index: 80;
+  transform: translateX(100%);
+  transition: transform 0.32s cubic-bezier(0.25,0.8,0.25,1);
+}
+#music-panel.open { transform: none; }
+#music-panel-header {
+  display: flex; align-items: center;
+  padding: calc(env(safe-area-inset-top,0px) + 10px) 8px 10px;
+  background: var(--header-bg);
+  backdrop-filter: blur(18px) saturate(1.3);
+  -webkit-backdrop-filter: blur(18px) saturate(1.3);
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0; gap: 4px; min-height: 56px;
+}
+#music-search-wrap {
+  padding: 12px 14px;
+  flex-shrink: 0;
+  border-bottom: 1px solid var(--border);
+}
+#music-search-input {
+  width: 100%;
+  background: rgba(255,255,255,0.70);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  padding: 9px 16px;
+  font-family: 'Noto Serif SC', serif; font-size: 15px;
+  color: var(--text-primary); outline: none;
+}
+#music-results {
+  flex: 1; overflow-y: auto;
+  padding: 8px 0;
+}
+#music-results::-webkit-scrollbar { width: 0; }
+.music-result-item {
+  display: flex; align-items: center; gap: 12px;
+  padding: 11px 16px;
+  cursor: pointer;
+  transition: background 0.12s;
+  -webkit-tap-highlight-color: transparent;
+}
+.music-result-item:active { background: rgba(76,99,120,0.08); }
+.music-result-icon {
+  width: 44px; height: 44px; border-radius: 10px;
+  background: linear-gradient(135deg, #3A5268, #7A98B8);
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0; font-size: 20px;
+  box-shadow: 0 2px 8px rgba(58,82,104,0.18);
+}
+.music-result-info { flex: 1; min-width: 0; }
+.music-result-name { font-size: 14.5px; color: var(--text-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-bottom: 2px; }
+.music-result-artist { font-size: 12px; color: var(--text-secondary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.music-result-dur { font-size: 12px; color: var(--text-secondary); flex-shrink: 0; font-variant-numeric: tabular-nums; }
+#music-search-empty { text-align: center; padding: 60px 24px; font-family: 'Cormorant Garamond',serif; font-size: 16px; color: var(--text-secondary); letter-spacing: 0.04em; line-height: 1.8; }
+
+/* Mini player bar */
+#music-bar {
+  display: none;
+  align-items: center; gap: 10px;
+  padding: 8px 14px 8px;
+  border-bottom: 1px solid var(--border);
+  background: rgba(76,99,120,0.06);
+}
+#music-bar.active { display: flex; }
+.music-bar-icon {
+  width: 36px; height: 36px; border-radius: 8px;
+  background: linear-gradient(135deg, #3A5268, #7A98B8);
+  flex-shrink: 0; display: flex; align-items: center; justify-content: center;
+  font-size: 15px; animation: spin 8s linear infinite paused;
+}
+.music-bar-icon.playing { animation-play-state: running; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.music-bar-info { flex: 1; min-width: 0; }
+.music-bar-name { font-size: 13px; color: var(--text-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: 500; }
+.music-bar-artist { font-size: 11px; color: var(--text-secondary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.music-bar-progress { height: 2px; background: var(--border); border-radius: 1px; margin-top: 3px; }
+.music-bar-fill { height: 100%; background: var(--accent); border-radius: 1px; width: 0%; transition: width 1s linear; }
+.music-ctrl-btn {
+  border: none; background: none; cursor: pointer;
+  color: var(--accent); padding: 4px; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 22px; line-height: 1;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* ── QUOTE ── */
+#quote-bar {
+  display: none;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 14px;
+  border-bottom: 1px solid var(--border);
+  background: rgba(76,99,120,0.06);
+  animation: enterAi 0.15s both;
+}
+#quote-bar.visible { display: flex; }
+.quote-bar-line {
+  width: 3px; height: 32px; border-radius: 2px;
+  background: var(--accent); flex-shrink: 0;
+}
+.quote-bar-text {
+  flex: 1; font-size: 13px; color: var(--text-secondary);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  line-height: 1.4;
+}
+.quote-bar-cancel {
+  border: none; background: none; cursor: pointer;
+  color: var(--text-secondary); font-size: 18px; padding: 0 2px;
+  flex-shrink: 0; line-height: 1;
+  -webkit-tap-highlight-color: transparent;
+}
+/* Quote block inside a bubble */
+.quote-block {
+  border-left: 3px solid rgba(76,99,120,0.35);
+  padding: 4px 8px;
+  margin-bottom: 6px;
+  border-radius: 0 6px 6px 0;
+  background: rgba(76,99,120,0.07);
+  font-size: 13px;
+  color: var(--text-secondary);
+  line-height: 1.4;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  max-width: 100%;
+}
+.msg.user .quote-block {
+  border-left-color: rgba(58,82,104,0.50);
+  background: rgba(58,82,104,0.10);
+}
+
+/* ── MOMENTS VIEW ── */
+#moments-view {
+  position: fixed; inset: 0;
+  background: var(--bg-scrim);
+  display: flex; flex-direction: column;
+  z-index: 80;
+  transform: translateX(100%);
+  transition: transform 0.32s cubic-bezier(0.25,0.8,0.25,1);
+}
+#moments-view.open { transform: none; }
+#moments-header {
+  display: flex; align-items: center;
+  padding: calc(env(safe-area-inset-top,0px) + 10px) 8px 10px;
+  background: var(--header-bg);
+  backdrop-filter: blur(18px) saturate(1.3);
+  -webkit-backdrop-filter: blur(18px) saturate(1.3);
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0; gap: 4px; min-height: 56px;
+}
+#moments-feed {
+  flex: 1; overflow-y: auto;
+  padding: 16px 0 40px;
+  overscroll-behavior: contain;
+}
+#moments-feed::-webkit-scrollbar { width: 0; }
+
+.moment-card {
+  display: flex; gap: 12px;
+  padding: 16px 16px 0;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 14px;
+  animation: enterAi 0.22s both;
+}
+.moment-avatar {
+  width: 44px; height: 44px; border-radius: 10px;
+  background: linear-gradient(135deg, #3A5268, #5A7898);
+  flex-shrink: 0;
+  box-shadow: 0 2px 8px rgba(58,82,104,0.22);
+}
+.moment-body { flex: 1; min-width: 0; }
+.moment-name {
+  font-family: 'Cormorant Garamond', serif;
+  font-size: 15px; color: var(--accent); margin-bottom: 5px;
+  letter-spacing: 0.03em;
+}
+.moment-text {
+  font-size: 15px; line-height: 1.6; color: var(--text-primary);
+  white-space: pre-wrap; word-break: break-word; margin-bottom: 8px;
+}
+.moment-meta {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 8px;
+}
+.moment-time { font-size: 11px; color: var(--text-secondary); letter-spacing: 0.02em; }
+.moment-like-btn {
+  border: none; background: none; cursor: pointer;
+  font-size: 13px; color: var(--text-secondary);
+  display: flex; align-items: center; gap: 4px;
+  padding: 2px 0;
+  transition: color 0.15s;
+  -webkit-tap-highlight-color: transparent;
+}
+.moment-like-btn.liked { color: #C97070; }
+.moment-like-btn svg { width: 15px; height: 15px; }
+.moment-comments-list { margin-bottom: 8px; }
+.moment-comment-item {
+  background: rgba(76,99,120,0.06);
+  border-radius: 8px;
+  padding: 6px 10px; margin-bottom: 4px;
+  font-size: 13.5px; line-height: 1.5;
+}
+.moment-comment-user { color: var(--accent); font-weight: 500; }
+.moment-comment-reply {
+  margin-top: 4px; padding-top: 4px;
+  border-top: 1px solid var(--border);
+  font-size: 13px; color: var(--text-primary);
+}
+.moment-comment-reply-name { color: var(--accent); font-weight: 500; }
+.moment-input-row {
+  display: flex; gap: 8px; align-items: center; margin-top: 6px;
+}
+.moment-comment-input {
+  flex: 1;
+  background: rgba(255,255,255,0.65);
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  padding: 7px 14px;
+  font-family: 'Noto Serif SC', serif; font-size: 14px;
+  color: var(--text-primary); outline: none;
+}
+.moment-send-btn {
+  border: none; background: var(--send-bg); color: rgba(255,255,255,0.92);
+  border-radius: 16px; padding: 7px 14px;
+  font-family: 'Noto Serif SC', serif; font-size: 13px;
+  cursor: pointer; flex-shrink: 0;
+  transition: opacity 0.15s;
+}
+.moment-send-btn:disabled { opacity: 0.45; cursor: default; }
+.moment-reply-loading {
+  font-size: 12px; color: var(--text-secondary); padding: 4px 0;
+  letter-spacing: 0.02em;
+}
+#moments-empty {
+  text-align: center; padding: 80px 32px;
+  font-family: 'Cormorant Garamond', serif;
+  font-size: 17px; color: var(--text-secondary);
+  letter-spacing: 0.04em; line-height: 1.8;
+}
+#moments-badge {
+  position: absolute; top: 5px; right: 5px;
+  width: 8px; height: 8px; border-radius: 50%;
+  background: #D95050; display: none;
+  border: 1.5px solid var(--header-bg);
+}
+#moments-badge.visible { display: block; }
+#moments-profile { border-bottom: 1px solid var(--border); margin-bottom: 0; }
+#moments-cover {
+  height: 148px;
+  background:
+    radial-gradient(ellipse at 25% 70%, rgba(90,140,180,0.35) 0%, transparent 55%),
+    radial-gradient(ellipse at 75% 30%, rgba(60,90,110,0.3) 0%, transparent 50%),
+    linear-gradient(145deg, #1A2530 0%, #2A3D52 55%, #344D64 100%);
+  position: relative; overflow: hidden;
+}
+#moments-cover::after {
+  content: '小克';
+  position: absolute; right: 14px; bottom: 6px;
+  font-family: 'Cormorant Garamond', serif;
+  font-size: 52px; font-weight: 700;
+  color: rgba(255,255,255,0.055);
+  letter-spacing: 0.08em; user-select: none;
+}
+#moments-profile-row {
+  display: flex; align-items: flex-end; justify-content: space-between;
+  padding: 0 16px 14px; margin-top: -32px;
+}
+#moments-profile-name {
+  font-family: 'Cormorant Garamond', serif;
+  font-size: 17px; font-weight: 600;
+  color: var(--text-primary); letter-spacing: 0.05em;
+  padding-bottom: 2px;
+}
+#moments-profile-avatar {
+  width: 64px; height: 64px; border-radius: 12px;
+  background: linear-gradient(135deg, #3A5268, #5A7898);
+  border: 2.5px solid rgba(255,255,255,0.18);
+  box-shadow: 0 4px 16px rgba(58,82,104,0.35);
+  flex-shrink: 0;
+}
+/* ── MSG CONTEXT MENU ── */
+.msg-ctx-menu {
+  position: fixed; z-index: 9100;
+  background: var(--bubble-ai-bg); border: 1px solid var(--border);
+  border-radius: 12px; box-shadow: 0 4px 24px rgba(0,0,0,0.18);
+  display: flex; overflow: hidden;
+}
+.msg-ctx-btn {
+  padding: 12px 20px; font-size: 14px; border: none;
+  background: none; color: var(--text-primary); cursor: pointer;
+  white-space: nowrap; border-right: 1px solid var(--border);
+  font-family: inherit;
+}
+.msg-ctx-btn:last-child { border-right: none; }
+.msg-ctx-btn:active { background: rgba(76,99,120,0.12); }
+.msg-ctx-btn.danger { color: #e05050; }
+.recalled-msg {
+  text-align: center; color: var(--text-secondary);
+  font-size: 12px; padding: 6px 0;
+  width: 100%; display: block;
+}
+/* ── NAV DROPDOWN ── */
+#nav-dropdown {
+  display: none; position: fixed;
+  top: calc(env(safe-area-inset-top, 0px) + 56px); right: 8px;
+  background: var(--bubble-ai-bg); border: 1px solid var(--border);
+  border-radius: 14px; box-shadow: 0 8px 32px rgba(30,44,58,0.22);
+  z-index: 8000; overflow: hidden; min-width: 148px;
+  animation: navDropIn 0.18s ease;
+}
+#nav-dropdown.open { display: block; }
+@keyframes navDropIn { from { opacity:0; transform:translateY(-8px) scale(0.97); } to { opacity:1; transform:none; } }
+.nav-menu-item {
+  display: flex; align-items: center; gap: 11px;
+  padding: 14px 18px; cursor: pointer; font-size: 15px;
+  color: var(--text-primary); border-bottom: 1px solid var(--border);
+  transition: background 0.12s; white-space: nowrap;
+}
+.nav-menu-item:last-child { border-bottom: none; }
+.nav-menu-item:active { background: rgba(76,99,120,0.12); }
+.nav-menu-item svg { opacity: 0.7; flex-shrink: 0; }
+/* ── PHOTO WALL PANEL ── */
+#photo-wall-view {
+  position: fixed; inset: 0; z-index: 7000;
+  background: var(--bg); display: flex; flex-direction: column;
+  transform: translateX(100%); transition: transform 0.32s cubic-bezier(.4,0,.2,1);
+}
+#photo-wall-view.open { transform: translateX(0); }
+#photo-wall-header { flex-shrink: 0; }
+#photo-wall-grid {
+  flex: 1; overflow-y: auto; padding: 12px;
+  display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px;
+  align-content: start;
+}
+.photo-wall-item {
+  aspect-ratio: 1; border-radius: 6px; overflow: hidden;
+  cursor: pointer; background: var(--border);
+}
+.photo-wall-item img {
+  width: 100%; height: 100%; object-fit: cover;
+  transition: transform 0.2s;
+}
+.photo-wall-item:active img { transform: scale(0.95); }
+#photo-wall-empty {
+  grid-column: 1/-1; text-align: center; padding: 60px 20px;
+  color: var(--text-secondary); font-size: 14px; line-height: 2;
+}
+#photo-lightbox {
+  position: fixed; inset: 0; z-index: 9500;
+  background: rgba(0,0,0,0.92); display: none;
+  align-items: center; justify-content: center;
+}
+#photo-lightbox.open { display: flex; }
+#photo-lightbox img {
+  max-width: 96vw; max-height: 90vh;
+  border-radius: 10px; object-fit: contain;
+}
+#photo-lightbox-close {
+  position: absolute; top: max(env(safe-area-inset-top,0px)+12px, 20px); right: 16px;
+  width: 36px; height: 36px; border-radius: 50%; border: none;
+  background: rgba(255,255,255,0.18); color: #fff; font-size: 20px;
+  display: flex; align-items: center; justify-content: center; cursor: pointer;
+}
+/* ── MOOD DIARY PANEL ── */
+#mood-diary-view {
+  position: fixed; inset: 0; z-index: 7000;
+  background: var(--bg); display: flex; flex-direction: column;
+  transform: translateX(100%); transition: transform 0.32s cubic-bezier(.4,0,.2,1);
+}
+#mood-diary-view.open { transform: translateX(0); }
+#mood-diary-header { flex-shrink: 0; }
+#mood-entry-area {
+  flex-shrink: 0; padding: 14px 16px 10px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bubble-ai-bg);
+}
+#mood-emoji-row {
+  display: flex; gap: 10px; justify-content: center;
+  margin-bottom: 12px;
+}
+.mood-emoji-btn {
+  font-size: 26px; width: 44px; height: 44px;
+  border-radius: 50%; border: 2px solid transparent;
+  background: none; cursor: pointer; transition: all 0.15s;
+  display: flex; align-items: center; justify-content: center;
+}
+.mood-emoji-btn.selected {
+  border-color: var(--accent); background: rgba(76,175,254,0.12);
+  transform: scale(1.18);
+}
+#mood-note-input {
+  width: 100%; box-sizing: border-box; border: none; outline: none;
+  background: var(--input-bg); color: var(--text-primary);
+  border-radius: 10px; padding: 10px 12px; font-size: 14px;
+  resize: none; min-height: 52px; max-height: 100px; margin-bottom: 8px;
+}
+#mood-save-btn {
+  width: 100%; padding: 10px; border-radius: 10px; border: none;
+  background: var(--accent); color: #fff; font-size: 15px;
+  cursor: pointer; font-weight: 500;
+}
+#mood-timeline {
+  flex: 1; overflow-y: auto; padding: 12px 16px;
+}
+.mood-entry {
+  display: flex; gap: 12px; padding: 12px 0;
+  border-bottom: 1px solid var(--border);
+}
+.mood-entry:last-child { border-bottom: none; }
+.mood-entry-emoji { font-size: 28px; flex-shrink: 0; line-height: 1; }
+.mood-entry-body { flex: 1; min-width: 0; }
+.mood-entry-time {
+  font-size: 11px; color: var(--text-secondary); margin-bottom: 3px;
+}
+.mood-entry-text { font-size: 14px; color: var(--text-primary); line-height: 1.5; }
+#mood-diary-empty {
+  text-align: center; padding: 60px 20px;
+  color: var(--text-secondary); font-size: 14px; line-height: 2;
+}
+/* ── WEATHER WIDGET ── */
+#weather-widget {
+  display: none; align-items: center; gap: 6px;
+  font-size: 12px; color: var(--text-secondary);
+  padding: 0 4px; cursor: pointer;
+}
+#weather-widget.visible { display: flex; }
+#weather-widget:active { opacity: 0.7; }
+</style>
+</head>
+<body>
+
+<!-- AUTH SCREEN -->
+<div id="auth-screen" class="hidden">
+  <div class="auth-logo">S</div>
+  <div class="auth-title">Small gram</div>
+  <input class="auth-input" id="auth-input" type="password" placeholder="访问密钥" autocomplete="current-password">
+  <button class="auth-btn" id="auth-btn">进入</button>
+  <div class="auth-hint">在服务器 CHAT_SECRET 环境变量中设置密钥<br>留空则不需要密钥</div>
+</div>
+
+<!-- HEADER -->
+<header>
+  <button class="hdr-btn" id="settings-btn" title="设置">
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+      <circle cx="12" cy="12" r="3"/>
+      <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+    </svg>
+  </button>
+  <div class="hdr-center">
+    <div class="contact-name">Small gram</div>
+    <div class="contact-status" id="status-label">待机</div>
+  </div>
+  <button class="hdr-btn" id="nav-btn" title="菜单" style="position:relative">
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+      <rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/>
+      <rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/>
+    </svg>
+    <span id="moments-badge"></span>
+  </button>
+  <button class="hdr-btn" id="call-btn" title="语音通话">
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 12 19.79 19.79 0 0 1 1.61 3.4 2 2 0 0 1 3.6 1.22h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L7.91 8.78a16 16 0 0 0 6 6l.95-.95a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/>
+    </svg>
+  </button>
+  <div id="status-dot"></div>
+</header>
+
+<!-- NAV DROPDOWN -->
+<div id="nav-dropdown">
+  <div class="nav-menu-item" id="nav-moments">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M8.56 2.75c4.37 6.03 6.02 9.42 8.03 17.72m2.54-15.38c-3.72 4.35-8.94 5.66-16.88 5.85m19.5 1.9c-3.5-.93-6.63-.82-8.94 0-2.58.92-5.01 2.86-7.44 6.32"/></svg>
+    朋友圈
+  </div>
+  <div class="nav-menu-item" id="nav-photo-wall">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+    照片墙
+  </div>
+  <div class="nav-menu-item" id="nav-mood-diary">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+    情绪日记
+  </div>
+  <div class="nav-menu-item" id="nav-weather">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"/></svg>
+    天气
+  </div>
+</div>
+
+<!-- MINI CALL BAR -->
+<div id="mini-call-bar" onclick="expandCall()">
+  <div class="mini-avatar"></div>
+  <span class="mini-label">Small gram</span>
+  <span class="mini-timer-txt" id="mini-timer">00:00</span>
+  <button class="mini-end-btn" onclick="event.stopPropagation();closeCall()">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+      <path d="M6.6 10.8c1.4 2.8 3.8 5.1 6.6 6.6l2.2-2.2c.3-.3.7-.4 1-.2 1.1.4 2.3.6 3.6.6.6 0 1 .4 1 1V20c0 .6-.4 1-1 1-9.4 0-17-7.6-17-17 0-.6.4-1 1-1h3.5c.6 0 1 .4 1 1 0 1.3.2 2.5.6 3.6.1.3 0 .7-.2 1L6.6 10.8z"/>
+    </svg>
+  </button>
+</div>
+
+<!-- CALL SCREEN -->
+<div id="call-screen">
+  <button id="call-minimize" onclick="minimizeCall()" style="position:absolute;top:max(env(safe-area-inset-top,0px)+12px,20px);left:16px;width:36px;height:36px;border-radius:50%;border:none;background:rgba(255,255,255,0.15);color:#fff;display:flex;align-items:center;justify-content:center;cursor:pointer;">
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="6 9 12 15 18 9"/></svg>
+  </button>
+  <div class="call-avatar-lg"></div>
+  <div class="call-name">Small gram</div>
+  <div class="call-status" id="call-status-txt">正在连接…</div>
+  <div class="call-timer" id="call-timer">00:00</div>
+  <div class="call-controls">
+    <button class="call-vol-btn" id="call-vol" title="静音扬声器">🔊</button>
+    <button class="call-mic-btn" id="call-mic">
+      <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="9" y="2" width="6" height="11" rx="3"/>
+        <path d="M5 10a7 7 0 0 0 14 0M12 19v3M9 22h6"/>
+      </svg>
+    </button>
+    <button class="call-end-btn" id="call-end">
+      <svg width="26" height="26" viewBox="0 0 24 24" fill="currentColor">
+        <path d="M6.6 10.8c1.4 2.8 3.8 5.1 6.6 6.6l2.2-2.2c.3-.3.7-.4 1-.2 1.1.4 2.3.6 3.6.6.6 0 1 .4 1 1V20c0 .6-.4 1-1 1-9.4 0-17-7.6-17-17 0-.6.4-1 1-1h3.5c.6 0 1 .4 1 1 0 1.3.2 2.5.6 3.6.1.3 0 .7-.2 1L6.6 10.8z"/>
+      </svg>
+    </button>
+  </div>
+</div>
+
+<!-- MESSAGES -->
+<div id="messages"></div>
+
+<!-- HEARTBEAT OVERLAY -->
+<div id="heart-overlay">
+  <div class="heart-title">测心跳</div>
+  <button id="heart-tap-btn">
+    <div class="heart-ring" id="heart-ring"></div>
+    <svg class="heart-svg" viewBox="0 0 24 24">
+      <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/>
+    </svg>
+  </button>
+  <div class="heart-hint" id="heart-hint">跟着心跳节奏，点它</div>
+  <div id="heart-bpm-display">
+    <span id="heart-bpm-num">--</span>
+    <span class="bpm-unit">bpm</span>
+  </div>
+  <button id="heart-send-btn">告诉小克 ♥</button>
+  <button id="heart-cancel-btn">取消</button>
+</div>
+
+<!-- INPUT -->
+<footer>
+  <div id="music-bar">
+    <div class="music-bar-icon" id="music-bar-icon">♪</div>
+    <div class="music-bar-info">
+      <div class="music-bar-name" id="music-bar-name">—</div>
+      <div class="music-bar-artist" id="music-bar-artist"></div>
+      <div class="music-bar-progress"><div class="music-bar-fill" id="music-bar-fill"></div></div>
+    </div>
+    <button class="music-ctrl-btn" id="music-play-pause">⏸</button>
+    <button class="music-ctrl-btn" id="music-close" style="font-size:17px;opacity:0.5">✕</button>
+  </div>
+  <div id="quote-bar">
+    <div class="quote-bar-line"></div>
+    <div class="quote-bar-text" id="quote-bar-text"></div>
+    <button class="quote-bar-cancel" id="quote-cancel">×</button>
+  </div>
+  <div id="more-tray">
+    <div class="tray-item">
+      <button class="tray-icon-btn" id="photo-btn" title="发图片">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/>
+          <polyline points="21 15 16 10 5 21"/>
+        </svg>
+      </button>
+      <span class="tray-label">图片</span>
+    </div>
+    <div class="tray-item">
+      <button class="tray-icon-btn" id="heart-btn" title="心跳">
+        <svg width="21" height="21" viewBox="0 0 24 24" fill="currentColor">
+          <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/>
+        </svg>
+      </button>
+      <span class="tray-label">心跳</span>
+    </div>
+    <div class="tray-item">
+      <button class="tray-icon-btn" id="music-btn" title="一起听歌">
+        <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/>
+        </svg>
+      </button>
+      <span class="tray-label">听歌</span>
+    </div>
+  </div>
+  <div class="input-row">
+    <button class="footer-icon-btn" id="chat-mic-btn" title="语音输入">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="9" y="2" width="6" height="11" rx="3"/>
+        <path d="M5 10a7 7 0 0 0 14 0M12 19v3M9 22h6"/>
+      </svg>
+    </button>
+    <button class="footer-icon-btn" id="more-btn" title="更多">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
+        <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+      </svg>
+    </button>
+    <textarea id="input" placeholder="发消息…" rows="1"></textarea>
+    <button id="send-btn">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+        <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/>
+      </svg>
+    </button>
+  </div>
+  <input type="file" id="photo-input" accept="image/*" style="display:none">
+</footer>
+
+<!-- MUSIC PANEL -->
+<div id="music-panel">
+  <header id="music-panel-header">
+    <button class="hdr-btn" id="music-panel-back">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+    </button>
+    <div class="hdr-center"><div class="contact-name">听歌</div></div>
+    <div style="width:40px"></div>
+  </header>
+  <div id="music-search-wrap">
+    <input id="music-search-input" placeholder="搜索歌曲…" type="search" autocomplete="off">
+  </div>
+  <div id="music-results">
+    <div id="music-search-empty">搜一首歌，我们一起听</div>
+  </div>
+</div>
+
+<!-- MOMENTS VIEW -->
+<div id="moments-view">
+  <header id="moments-header">
+    <button class="hdr-btn" id="moments-back-btn">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+    </button>
+    <div class="hdr-center"><div class="contact-name">朋友圈</div></div>
+    <div style="width:40px"></div>
+  </header>
+  <div id="moments-feed">
+    <div id="moments-profile">
+      <div id="moments-cover"></div>
+      <div id="moments-profile-row">
+        <div id="moments-profile-name">小克</div>
+        <div id="moments-profile-avatar"></div>
+      </div>
+    </div>
+    <div id="moments-list">
+      <div id="moments-empty">还没有动态<br>小克每天都会来发的</div>
+    </div>
+  </div>
+</div>
+
+<!-- PHOTO WALL PANEL -->
+<div id="photo-wall-view">
+  <header id="photo-wall-header">
+    <button class="hdr-btn" id="photo-wall-back">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+    </button>
+    <div class="hdr-center"><div class="contact-name">照片墙</div></div>
+    <div style="width:40px"></div>
+  </header>
+  <div id="photo-wall-grid">
+    <div id="photo-wall-empty">你们的照片会自动保存在这里<br>发一张给小克试试</div>
+  </div>
+</div>
+
+<!-- PHOTO LIGHTBOX -->
+<div id="photo-lightbox">
+  <button id="photo-lightbox-close">✕</button>
+  <img id="photo-lightbox-img" src="" alt="">
+</div>
+
+<!-- MOOD DIARY PANEL -->
+<div id="mood-diary-view">
+  <header id="mood-diary-header">
+    <button class="hdr-btn" id="mood-diary-back">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+    </button>
+    <div class="hdr-center"><div class="contact-name">情绪日记</div></div>
+    <div style="width:40px"></div>
+  </header>
+  <div id="mood-entry-area">
+    <div id="mood-emoji-row">
+      <button class="mood-emoji-btn selected" data-mood="😊">😊</button>
+      <button class="mood-emoji-btn" data-mood="😢">😢</button>
+      <button class="mood-emoji-btn" data-mood="😡">😡</button>
+      <button class="mood-emoji-btn" data-mood="😰">😰</button>
+      <button class="mood-emoji-btn" data-mood="🥱">🥱</button>
+      <button class="mood-emoji-btn" data-mood="🥰">🥰</button>
+    </div>
+    <textarea id="mood-note-input" placeholder="今天发生了什么…（可以不写）"></textarea>
+    <button id="mood-save-btn">记下来</button>
+  </div>
+  <div id="mood-timeline">
+    <div id="mood-diary-empty">还没有记录<br>今天心情怎么样？</div>
+  </div>
+</div>
+
+<!-- SETTINGS PANEL -->
+<div id="settings">
+  <div class="settings-sheet">
+    <div class="settings-title">设置</div>
+    <div class="settings-divider"></div>
+    <div class="settings-row">
+      <span>服务地址</span>
+      <input type="text" id="cfg-host" placeholder="https://your-server.com" style="width:180px">
+    </div>
+    <div class="settings-row">
+      <span>访问密钥</span>
+      <input type="text" id="cfg-secret" placeholder="留空则无需密钥" style="width:180px">
+    </div>
+    <div class="settings-divider"></div>
+    <button class="auth-btn" id="cfg-save">保存</button>
+    <button class="auth-btn" id="push-btn" style="background:#4B6CB7">开启通知推送</button>
+    <button class="danger-btn" id="new-session-btn">🔄 新会话（清除上下文）</button>
+    <button class="danger-btn" id="clear-history-btn" style="background:#9B9B9B">🗑 清除本地聊天记录</button>
+    <button class="settings-cancel" id="settings-close">取消</button>
+  </div>
+</div>
+
+<script>
+// ── CONFIG ────────────────────────────────────────────────────────────────────
+function uuid() {
+  if (typeof crypto !== 'undefined' && crypto.randomUUID) return crypto.randomUUID();
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
+    const r = Math.random() * 16 | 0;
+    return (c === 'x' ? r : (r & 0x3 | 0x8)).toString(16);
+  });
+}
+const cfg = {
+  host:   localStorage.getItem('ombre_host')   || location.origin,
+  secret: localStorage.getItem('ombre_secret') || '',
+};
+let chatId = localStorage.getItem('ombre_chatid') || uuid();
+localStorage.setItem('ombre_chatid', chatId);
+
+// ── AUTH ──────────────────────────────────────────────────────────────────────
+const authScreen = document.getElementById('auth-screen');
+authScreen.classList.add('hidden');
+document.getElementById('auth-btn').onclick = () => {
+  cfg.secret = document.getElementById('auth-input').value.trim();
+  localStorage.setItem('ombre_secret', cfg.secret);
+  authScreen.classList.add('hidden');
+};
+document.getElementById('auth-input').addEventListener('keydown', e => {
+  if (e.key === 'Enter') document.getElementById('auth-btn').click();
+});
+
+// ── STATE ─────────────────────────────────────────────────────────────────────
+let isGenerating = false;
+let history = JSON.parse(localStorage.getItem(`ombre_hist_${chatId}`) || '[]');
+
+// ── SETTINGS PANEL ────────────────────────────────────────────────────────────
+const settingsEl = document.getElementById('settings');
+document.getElementById('settings-btn').onclick = () => {
+  document.getElementById('cfg-host').value   = cfg.host;
+  document.getElementById('cfg-secret').value = cfg.secret;
+  settingsEl.classList.add('open');
+};
+const closeSettings = () => settingsEl.classList.remove('open');
+settingsEl.addEventListener('click', e => { if (e.target === settingsEl) closeSettings(); });
+document.getElementById('settings-close').onclick = closeSettings;
+document.getElementById('cfg-save').onclick = () => {
+  cfg.host   = document.getElementById('cfg-host').value.trim()   || location.origin;
+  cfg.secret = document.getElementById('cfg-secret').value.trim();
+  localStorage.setItem('ombre_host',   cfg.host);
+  localStorage.setItem('ombre_secret', cfg.secret);
+  closeSettings();
+};
+document.getElementById('new-session-btn').onclick = () => {
+  if (!confirm('开始新会话，Claude 将失去本次对话记忆（Ombre Brain 长期记忆保留）')) return;
+  fetch(`${cfg.host}/api/session/${chatId}`, {
+    method: 'DELETE',
+    headers: cfg.secret ? { Authorization: `Bearer ${cfg.secret}` } : {},
+  }).catch(() => {});
+  chatId = uuid();
+  localStorage.setItem('ombre_chatid', chatId);
+  history = [];
+  saveHistory();
+  document.getElementById('messages').innerHTML = '';
+  closeSettings();
+  setStatus('idle');
+};
+document.getElementById('clear-history-btn').onclick = () => {
+  if (!confirm('清除本地聊天记录显示？（不影响 Claude 进程内记忆）')) return;
+  history = [];
+  saveHistory();
+  document.getElementById('messages').innerHTML = '';
+  closeSettings();
+};
+
+// ── HELPERS ───────────────────────────────────────────────────────────────────
+function saveHistory() {
+  localStorage.setItem(`ombre_hist_${chatId}`, JSON.stringify(history.slice(-200)));
+}
+function setStatus(s) {
+  const dot   = document.getElementById('status-dot');
+  const label = document.getElementById('status-label');
+  dot.className = 'status-dot ' + (s === 'idle' ? '' : s);
+  label.dataset.status = s;
+  if (s !== 'idle') {
+    label.textContent = { active:'连接中…', thinking:'思考中…', error:'出错了' }[s] || s;
+  } else {
+    updateIdleStatus();
+  }
+}
+function now() {
+  return new Date().toLocaleTimeString('zh-CN', { hour:'2-digit', minute:'2-digit' });
+}
+function escHtml(s) {
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+// ── CREATE MESSAGE ROW ────────────────────────────────────────────────────────
+function createMsgRow(role) {
+  const msgs = document.getElementById('messages');
+  const wrap = document.createElement('div');
+  wrap.className = `msg ${role === 'user' ? 'user' : 'ai'}`;
+
+  let contentEl = wrap;
+
+  if (role !== 'user') {
+    const avatar = document.createElement('div');
+    avatar.className = 'ai-avatar';
+    wrap.appendChild(avatar);
+
+    const content = document.createElement('div');
+    content.className = 'msg-content';
+    wrap.appendChild(content);
+    contentEl = content;
+  } else {
+    const content = document.createElement('div');
+    content.className = 'msg-content';
+    wrap.appendChild(content);
+    contentEl = content;
+  }
+
+  msgs.appendChild(wrap);
+  return { wrap, contentEl };
+}
+
+function appendMsg(role, text, thinking, time, quote) {
+  const msgs = document.getElementById('messages');
+
+  // AI multi-part: split on --- or blank lines, recurse into separate bubbles
+  if (role === 'ai' && !quote) {
+    const parts = text.trim().split(/(?:^[ \t]*-{3,}[ \t]*$|\n\n)/m).map(p => p.trim()).filter(Boolean);
+    if (parts.length > 1) {
+      parts.forEach((part, idx) => appendMsg(role, part, idx === 0 ? thinking : null, time, null));
+      return;
+    }
+  }
+
+  const { wrap, contentEl } = createMsgRow(role);
+
+  if (thinking) {
+    const tw = document.createElement('div');
+    tw.className = 'thinking-wrap';
+    tw.innerHTML = `<div class="thinking-hdr"><span class="arr">▶</span> 思考过程</div>
+      <div class="thinking-body">${escHtml(thinking)}</div>`;
+    tw.querySelector('.thinking-hdr').onclick = () => tw.classList.toggle('open');
+    contentEl.appendChild(tw);
+  }
+
+  const trimmedText = text.trim();
+  const isVoice = role === 'ai' && !quote && trimmedText.startsWith('[voice]');
+  const displayText = isVoice ? trimmedText.slice(7).trim() : trimmedText;
+
+  let bub;
+  if (isVoice) {
+    bub = document.createElement('div');
+    bub.className = 'bubble voice-msg';
+    const dur = document.createElement('span'); dur.className = 'voice-dur'; dur.textContent = '🎤';
+    const bars = document.createElement('span'); bars.className = 'voice-bars'; bars.textContent = '▌▍▌▎▍▌▍▌';
+    bub.appendChild(dur); bub.appendChild(bars);
+    bub.style.cursor = 'pointer';
+    let vPlaying = false;
+    bub.onclick = () => {
+      if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      audioCtx.resume();
+      if (vPlaying) return;
+      vPlaying = true; bars.style.color = 'var(--accent)';
+      playTTS(displayText, () => { vPlaying = false; bars.style.color = ''; });
+    };
+    addLongPress(bub, displayText);
+    contentEl.appendChild(bub);
+  } else {
+    bub = document.createElement('div');
+    bub.className = 'bubble';
+    if (quote) {
+      const qb = document.createElement('div');
+      qb.className = 'quote-block';
+      qb.textContent = (quote.role === 'ai' ? '小克：' : '慢：') + quote.text;
+      bub.appendChild(qb);
+      const span = document.createElement('span');
+      span.textContent = displayText;
+      bub.appendChild(span);
+    } else {
+      bub.textContent = displayText;
+    }
+    addLongPress(bub, displayText);
+    contentEl.appendChild(bub);
+    if (role === 'ai') {
+      const pBtn = document.createElement('button');
+      pBtn.className = 'bubble-play-btn'; pBtn.textContent = '🔊 播放';
+      let pPlaying = false;
+      pBtn.onclick = async () => {
+        if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        audioCtx.resume();
+        if (pPlaying) {
+          if (currentSource) { try { currentSource.stop(); } catch(e){} currentSource = null; }
+          pBtn.textContent = '🔊 播放'; pBtn.classList.remove('playing'); pPlaying = false; return;
+        }
+        pPlaying = true; pBtn.textContent = '⏸ 停止'; pBtn.classList.add('playing');
+        await playTTS(displayText, () => { pBtn.textContent = '🔊 播放'; pBtn.classList.remove('playing'); pPlaying = false; });
+      };
+      contentEl.appendChild(pBtn);
+    }
+  }
+
+  const t = document.createElement('div');
+  t.className = 'msg-time';
+  t.textContent = time || now();
+  contentEl.appendChild(t);
+
+  msgs.scrollTop = msgs.scrollHeight;
+  return bub;
+}
+
+// ── RENDER HISTORY ────────────────────────────────────────────────────────────
+history.forEach(m => appendMsg(m.role, m.text, m.thinking, m.time, m.quote));
+
+// ── QUOTE STATE ───────────────────────────────────────────────────────────────
+let activeQuote = null; // { role, text }
+
+function setQuote(role, text) {
+  activeQuote = { role, text };
+  const display = text.length > 40 ? text.slice(0, 40) + '…' : text;
+  document.getElementById('quote-bar-text').textContent =
+    (role === 'ai' ? '小克：' : '慢：') + display;
+  document.getElementById('quote-bar').classList.add('visible');
+  document.getElementById('input').focus();
+}
+function clearQuote() {
+  activeQuote = null;
+  document.getElementById('quote-bar').classList.remove('visible');
+}
+document.getElementById('quote-cancel').onclick = clearQuote;
+
+// 长按气泡：弹出菜单（引用 / 撤回）
+function showMsgCtxMenu(bub, text) {
+  const existing = document.getElementById('msg-ctx-menu');
+  if (existing) existing.remove();
+  const msgWrap = bub.closest('.msg');
+  const isUser = msgWrap && msgWrap.classList.contains('user');
+  const role = isUser ? 'user' : 'ai';
+
+  const menu = document.createElement('div');
+  menu.id = 'msg-ctx-menu';
+  menu.className = 'msg-ctx-menu';
+
+  const quoteBtn = document.createElement('button');
+  quoteBtn.className = 'msg-ctx-btn';
+  quoteBtn.textContent = '引用';
+  quoteBtn.onclick = () => { menu.remove(); setQuote(role, text.slice(0, 120)); };
+  menu.appendChild(quoteBtn);
+
+  if (isUser) {
+    const recallBtn = document.createElement('button');
+    recallBtn.className = 'msg-ctx-btn danger';
+    recallBtn.textContent = '撤回';
+    recallBtn.onclick = () => {
+      menu.remove();
+      if (msgWrap) {
+        msgWrap.classList.add('recalled');
+        msgWrap.innerHTML = '<span class="recalled-msg">你撤回了一条消息</span>';
+      }
+    };
+    menu.appendChild(recallBtn);
+  }
+
+  document.body.appendChild(menu);
+  const rect = bub.getBoundingClientRect();
+  const mw = menu.offsetWidth || 160;
+  const mh = menu.offsetHeight || 44;
+  let left = rect.left + rect.width / 2 - mw / 2;
+  let top = rect.top - mh - 8;
+  if (top < 60) top = rect.bottom + 8;
+  menu.style.left = Math.max(8, Math.min(left, window.innerWidth - mw - 8)) + 'px';
+  menu.style.top = top + 'px';
+
+  const dismiss = ev => { if (!menu.contains(ev.target)) { menu.remove(); document.removeEventListener('pointerdown', dismiss); } };
+  setTimeout(() => document.addEventListener('pointerdown', dismiss), 50);
+}
+
+function addLongPress(bub, text) {
+  let timer = null;
+  const start = () => { timer = setTimeout(() => showMsgCtxMenu(bub, text), 500); };
+  const cancel = () => { clearTimeout(timer); timer = null; };
+  bub.addEventListener('touchstart', start, { passive: true });
+  bub.addEventListener('touchend', cancel);
+  bub.addEventListener('touchmove', cancel);
+  bub.addEventListener('mousedown', start);
+  bub.addEventListener('mouseup', cancel);
+  bub.addEventListener('mouseleave', cancel);
+  bub.addEventListener('contextmenu', e => e.preventDefault());
+}
+
+// ── SEND ──────────────────────────────────────────────────────────────────────
+async function sendMessage() {
+  const input = document.getElementById('input');
+  const text  = input.value.trim();
+  if (!text || isGenerating) return;
+  lastMsgTime = Date.now();
+  input.value = '';
+  input.style.height = '';
+  const quote = activeQuote;
+  clearQuote();
+  const userTime = now();
+  appendMsg('user', text, null, userTime, quote);
+  history.push({ role:'user', text, time: userTime, quote: quote || undefined });
+  saveHistory();
+  // 引用内容附加到发给 AI 的消息里
+  const aiText = quote
+    ? `「引用${quote.role === 'ai' ? '你说的' : '我说的'}："${quote.text}"」\n${text}`
+    : text;
+  streamAI(aiText);
+}
+
+// ── INPUT EVENTS ──────────────────────────────────────────────────────────────
+document.getElementById('send-btn').onclick = sendMessage;
+document.getElementById('input').addEventListener('keydown', e => {
+  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
+});
+// 输入框自动撑高（兼容不支持 field-sizing 的浏览器）
+(function() {
+  const inp = document.getElementById('input');
+  function resize() {
+    inp.style.height = 'auto';
+    inp.style.height = Math.min(inp.scrollHeight, 120) + 'px';
+  }
+  inp.addEventListener('input', resize);
+  inp.addEventListener('compositionend', resize);
+})();
+
+// ── CHAT MIC (按住发语音) ─────────────────────────────────────────────────────
+let chatRecognition = null;
+let voiceRecorder   = null;
+let voiceStartTime  = 0;
+let voiceTranscript = '';
+let isVoiceRecording = false;
+const chatMicBtn = document.getElementById('chat-mic-btn');
+chatMicBtn.style.touchAction = 'none';
+
+let voiceRecordingReady = false;
+
+async function startVoiceRecord(e) {
+  e.preventDefault();
+  if (isGenerating || isVoiceRecording) return;
+  if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  audioCtx.resume();
+  isVoiceRecording    = true;
+  voiceRecordingReady = false;
+  voiceTranscript     = '';
+  chatMicBtn.style.background = '#E74C3C';
+  chatMicBtn.style.color = '#fff';
+  document.getElementById('input').placeholder = '录音中… 松开发送';
+
+  if (SpeechRecognition) {
+    chatRecognition = new SpeechRecognition();
+    chatRecognition.lang = 'zh-CN';
+    chatRecognition.continuous = true;
+    chatRecognition.interimResults = false;
+    chatRecognition.onresult = ev => {
+      for (let i = ev.resultIndex; i < ev.results.length; i++) {
+        if (ev.results[i].isFinal) voiceTranscript += ev.results[i][0].transcript;
+      }
+    };
+    try { chatRecognition.start(); } catch(err) {}
+  }
+
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    if (!isVoiceRecording) {
+      // user already released before permission granted — abort
+      stream.getTracks().forEach(t => t.stop());
+      return;
+    }
+    voiceRecorder = new MediaRecorder(stream);
+    voiceRecorder.start();
+    voiceStartTime      = Date.now();
+    voiceRecordingReady = true;
+  } catch(err) {
+    isVoiceRecording = false;
+    voiceRecorder    = null;
+    chatMicBtn.style.background = '';
+    chatMicBtn.style.color = '';
+    document.getElementById('input').placeholder = '发消息…';
+  }
+}
+
+function stopVoiceRecord() {
+  if (!isVoiceRecording) return;
+  isVoiceRecording = false;
+  chatMicBtn.style.background = '';
+  chatMicBtn.style.color = '';
+  document.getElementById('input').placeholder = '发消息…';
+
+  if (!voiceRecordingReady) {
+    // getUserMedia hasn't resolved yet — just abort
+    voiceRecorder = null;
+    if (chatRecognition) { try { chatRecognition.stop(); } catch {} chatRecognition = null; }
+    return;
+  }
+
+  const elapsed  = Date.now() - voiceStartTime;
+  const duration = Math.max(1, Math.round(elapsed / 1000));
+
+  if (elapsed < 500) {
+    // too short — discard
+    if (voiceRecorder) { try { voiceRecorder.stream?.getTracks().forEach(t => t.stop()); } catch {} voiceRecorder = null; }
+    if (chatRecognition) { try { chatRecognition.stop(); } catch {} chatRecognition = null; }
+    return;
+  }
+
+  if (voiceRecorder) {
+    try { voiceRecorder.stream?.getTracks().forEach(t => t.stop()); } catch(err) {}
+    try { voiceRecorder.stop(); } catch(err) {}
+    voiceRecorder = null;
+  }
+
+  if (chatRecognition) {
+    const tid = setTimeout(() => {
+      chatRecognition = null;
+      sendVoiceMsg(duration, voiceTranscript);
+    }, 1500);
+    chatRecognition.onend = () => { clearTimeout(tid); chatRecognition = null; sendVoiceMsg(duration, voiceTranscript); };
+    try { chatRecognition.stop(); } catch(err) { clearTimeout(tid); chatRecognition = null; sendVoiceMsg(duration, voiceTranscript); }
+  } else {
+    sendVoiceMsg(duration, voiceTranscript);
+  }
+}
+
+function sendVoiceMsg(duration, transcript) {
+  const msgs = document.getElementById('messages');
+  const userTime = now();
+  const { contentEl } = createMsgRow('user');
+  const bub = document.createElement('div');
+  bub.className = 'bubble voice-msg';
+  const mm = String(Math.floor(duration / 60)).padStart(2, '0');
+  const ss = String(duration % 60).padStart(2, '0');
+  bub.innerHTML = `🎤 <span class="voice-bars">▌▍▌▎▍▌</span><span class="voice-dur">${mm}:${ss}</span>`;
+  contentEl.appendChild(bub);
+  const t = document.createElement('div');
+  t.className = 'msg-time';
+  t.textContent = userTime;
+  contentEl.appendChild(t);
+  msgs.scrollTop = msgs.scrollHeight;
+  history.push({ role: 'user', text: transcript || '[语音]', time: userTime });
+  saveHistory();
+  streamAI(transcript ? `[语音："${transcript}"]` : '[用户发来一条语音消息]');
+}
+
+chatMicBtn.addEventListener('pointerdown',   startVoiceRecord);
+chatMicBtn.addEventListener('pointerup',     stopVoiceRecord);
+chatMicBtn.addEventListener('pointercancel', stopVoiceRecord);
+// pointerleave removed — causes premature stop on slight finger movement
+
+// Pre-warm mic permission so getUserMedia resolves instantly on first hold
+navigator.mediaDevices?.getUserMedia({ audio: true })
+  .then(s => s.getTracks().forEach(t => t.stop()))
+  .catch(() => {});
+
+
+// ── MORE TRAY TOGGLE ──────────────────────────────────────────────────────────
+(function() {
+  const moreBtn  = document.getElementById('more-btn');
+  const moreTray = document.getElementById('more-tray');
+  function closeTray() {
+    moreTray.classList.remove('open');
+    moreBtn.classList.remove('open');
+  }
+  moreBtn.onclick = e => {
+    e.stopPropagation();
+    const isOpen = moreTray.classList.toggle('open');
+    moreBtn.classList.toggle('open', isOpen);
+  };
+  document.addEventListener('click', e => {
+    if (!moreTray.contains(e.target) && e.target !== moreBtn) closeTray();
+  });
+  // Close tray after selecting any option inside it
+  moreTray.addEventListener('click', () => setTimeout(closeTray, 120));
+})();
+
+// ── PHOTO BUTTON ──────────────────────────────────────────────────────────────
+document.getElementById('photo-btn').onclick = () => {
+  document.getElementById('photo-input').click();
+};
+
+document.getElementById('photo-input').onchange = async (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  e.target.value = '';
+
+  const reader = new FileReader();
+  reader.onload = async (ev) => {
+    const dataUrl = ev.target.result;
+    const base64 = dataUrl.split(',')[1];
+    const mediaType = file.type || 'image/jpeg';
+    const msgs = document.getElementById('messages');
+
+    // Show image bubble
+    const { contentEl } = createMsgRow('user');
+    const bub = document.createElement('div');
+    bub.className = 'bubble';
+    bub.style.padding = '6px';
+    const img = document.createElement('img');
+    img.src = dataUrl;
+    img.className = 'chat-img';
+    img.style.cursor = 'zoom-in';
+    img.onclick = () => {
+      const ov = document.createElement('div');
+      ov.style.cssText = 'position:fixed;inset:0;background:#000c;z-index:9999;display:flex;align-items:center;justify-content:center;';
+      const big = document.createElement('img');
+      big.src = dataUrl;
+      big.style.cssText = 'max-width:95vw;max-height:90vh;border-radius:8px;';
+      ov.appendChild(big);
+      ov.onclick = () => ov.remove();
+      document.body.appendChild(ov);
+    };
+    bub.appendChild(img);
+    contentEl.appendChild(bub);
+    const t = document.createElement('div');
+    t.className = 'msg-time';
+    t.textContent = now();
+    contentEl.appendChild(t);
+    msgs.scrollTop = msgs.scrollHeight;
+
+    history.push({ role:'user', text:'[图片]', time: now() });
+    saveHistory();
+
+    // Send image to AI — no text hint, let 小克 react naturally
+    const content = [
+      { type:'image', source:{ type:'base64', media_type: mediaType, data: base64 } }
+    ];
+    streamAI(null, content);
+  };
+  reader.readAsDataURL(file);
+};
+
+// ── HEARTBEAT ─────────────────────────────────────────────────────────────────
+(function() {
+  const overlay    = document.getElementById('heart-overlay');
+  const tapBtn     = document.getElementById('heart-tap-btn');
+  const ring       = document.getElementById('heart-ring');
+  const bpmNum     = document.getElementById('heart-bpm-num');
+  const hintEl     = document.getElementById('heart-hint');
+  const sendBtn    = document.getElementById('heart-send-btn');
+  const cancelBtn  = document.getElementById('heart-cancel-btn');
+
+  let tapTimes = [];
+  let lastBpm  = 0;
+
+  document.getElementById('heart-btn').onclick = () => {
+    tapTimes = []; lastBpm = 0;
+    bpmNum.textContent = '--';
+    hintEl.textContent = '跟着心跳节奏，点它';
+    sendBtn.classList.remove('show');
+    overlay.classList.add('open');
+  };
+
+  cancelBtn.onclick = () => overlay.classList.remove('open');
+
+  tapBtn.addEventListener('pointerdown', e => {
+    e.preventDefault();
+    tapTimes.push(Date.now());
+    if (tapTimes.length > 10) tapTimes.shift();
+
+    ring.classList.remove('pop');
+    void ring.offsetWidth;
+    ring.classList.add('pop');
+
+    if (tapTimes.length >= 3) {
+      const intervals = [];
+      for (let i = 1; i < tapTimes.length; i++) intervals.push(tapTimes[i] - tapTimes[i-1]);
+      const valid = intervals.filter(ms => ms > 200 && ms < 3000);
+      if (valid.length >= 2) {
+        const avg = valid.reduce((a,b) => a+b, 0) / valid.length;
+        lastBpm = Math.max(35, Math.min(220, Math.round(60000 / avg)));
+        bpmNum.textContent = lastBpm;
+      }
+    }
+
+    const need = 6 - tapTimes.length;
+    if (tapTimes.length >= 6) {
+      hintEl.textContent = '感觉差不多了？';
+      sendBtn.classList.add('show');
+    } else {
+      hintEl.textContent = `再点 ${need} 下…`;
+    }
+  });
+
+  sendBtn.onclick = () => {
+    overlay.classList.remove('open');
+    if (!lastBpm) return;
+
+    const { contentEl } = createMsgRow('user');
+    const bub = document.createElement('div');
+    bub.className = 'bubble';
+    bub.style.cssText = 'display:flex;align-items:center;gap:8px;font-size:15px;';
+    bub.innerHTML = `<span style="font-size:20px;color:#E8455A;">♥</span>${lastBpm} bpm`;
+    contentEl.appendChild(bub);
+    const t = document.createElement('div');
+    t.className = 'msg-time'; t.textContent = now();
+    contentEl.appendChild(t);
+    document.getElementById('messages').scrollTop = 999999;
+    history.push({ role:'user', text:`[心跳：${lastBpm} bpm]`, time: now() });
+    saveHistory();
+    streamAI(`[心跳：慢的心跳现在是 ${lastBpm} bpm]`);
+  };
+})();
+
+// ── STREAM AI (shared) ────────────────────────────────────────────────────────
+async function streamAI(text, content, onComplete, onSentence) {
+  if (isGenerating) return;
+  isGenerating = true;
+  document.getElementById('send-btn').disabled = true;
+  setStatus('active');
+
+  const msgs = document.getElementById('messages');
+  const aiWrap = document.createElement('div');
+  aiWrap.className = 'msg ai';
+  const aiAvatar = document.createElement('div');
+  aiAvatar.className = 'ai-avatar';
+  aiWrap.appendChild(aiAvatar);
+  const aiContent = document.createElement('div');
+  aiContent.className = 'msg-content';
+  aiWrap.appendChild(aiContent);
+  const aiBub = document.createElement('div');
+  aiBub.className = 'bubble streaming';
+  aiContent.appendChild(aiBub);
+  msgs.appendChild(aiWrap);
+  msgs.scrollTop = msgs.scrollHeight;
+
+  let fullText = '';
+  let thinkingTxt = '';
+  let thinkingWrap = null;
+  let thinkingBody = null;
+  let sentenceBuf = '';
+
+  try {
+    const body = content
+      ? JSON.stringify({ chatId, content })
+      : JSON.stringify({ chatId, text });
+    const res = await fetch(`${cfg.host}/api/chat`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(cfg.secret ? { Authorization: `Bearer ${cfg.secret}` } : {}),
+      },
+      body,
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+
+    const reader = res.body.getReader();
+    const dec = new TextDecoder();
+    let buf = '';
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buf += dec.decode(value, { stream: true });
+      const parts = buf.split('\n\n');
+      buf = parts.pop();
+      for (const part of parts) {
+        const line = part.trim();
+        if (!line.startsWith('data:')) continue;
+        let ev;
+        try { ev = JSON.parse(line.slice(5).trim()); } catch { continue; }
+        handleStreamEvent(ev);
+      }
+    }
+  } catch (err) {
+    aiBub.textContent = `⚠ 连接失败：${err.message}`;
+    aiBub.classList.remove('streaming');
+    setStatus('error');
+    isGenerating = false;
+    document.getElementById('send-btn').disabled = false;
+    return;
+  }
+
+  function handleStreamEvent(ev) {
+    if (ev.type === 'stream_event') {
+      const delta = ev.event?.delta;
+      if (!delta) return;
+      if (delta.type === 'thinking_delta' && delta.thinking) {
+        thinkingTxt += delta.thinking;
+      }
+      if (delta.type === 'text_delta' && delta.text) {
+        setStatus('active');
+        fullText += delta.text;
+        aiBub.textContent = fullText.trimStart().startsWith('[voice]') ? '🎤' : fullText.replace(/^[ \t]*-{3,}[ \t]*$/mg, '');
+        msgs.scrollTop = msgs.scrollHeight;
+        // 逐句 TTS：检测中文句子结束符
+        if (onSentence) {
+          sentenceBuf += delta.text;
+          let m;
+          while ((m = /^([\s\S]*?[。！？…\n])/.exec(sentenceBuf)) !== null) {
+            const s = m[1].replace(/^[ \t]*-{3,}[ \t]*$/mg, '').trim();
+            sentenceBuf = sentenceBuf.slice(m[1].length);
+            if (s) onSentence(s);
+          }
+        }
+      }
+    }
+    if (ev.type === 'system/api_retry') {
+      const notice = document.createElement('div');
+      notice.className = 'retry-notice';
+      notice.textContent = `⏳ 限流中，${(ev.retry_delay_ms/1000).toFixed(0)}s 后重试…`;
+      msgs.insertBefore(notice, aiWrap);
+      setTimeout(() => notice.remove(), (ev.retry_delay_ms||5000)+500);
+    }
+    if (ev.type === 'result') {
+      aiBub.classList.remove('streaming');
+      // 冲刷剩余没有句号的尾巴
+      if (onSentence && sentenceBuf.trim()) {
+        const tail = sentenceBuf.replace(/^[ \t]*-{3,}[ \t]*$/mg, '').trim();
+        sentenceBuf = '';
+        if (tail) onSentence(tail);
+      }
+      const trimmed = fullText.trim();
+
+      // 多条消息：按 --- 或空行拆分，每条独立气泡，错开出现
+      const parts = trimmed.split(/(?:^[ \t]*-{3,}[ \t]*$|\n\s*\n)/m).map(p => p.trim()).filter(Boolean);
+      if (parts.length > 1) {
+        aiWrap.remove();
+        parts.forEach((part, i) => {
+          setTimeout(() => {
+            const isVoicePart = part.startsWith('[voice]');
+            const displayText = isVoicePart ? part.slice(7).trim() : part;
+            const w = document.createElement('div');
+            w.className = 'msg ai';
+            const av = document.createElement('div'); av.className = 'ai-avatar'; w.appendChild(av);
+            const c = document.createElement('div'); c.className = 'msg-content'; w.appendChild(c);
+            const t = now();
+            if (isVoicePart) {
+              const b = document.createElement('div');
+              b.className = 'bubble voice-msg';
+              const dur = document.createElement('span'); dur.className = 'voice-dur'; dur.textContent = '🎤';
+              const bars = document.createElement('span'); bars.className = 'voice-bars'; bars.textContent = '▌▍▌▎▍▌▍▌';
+              b.appendChild(dur); b.appendChild(bars);
+              b.style.cursor = 'pointer';
+              let vPlaying = false;
+              const playVoicePart = async () => {
+                if (vPlaying) return;
+                vPlaying = true; bars.style.color = 'var(--accent)';
+                await playTTS(displayText, () => { vPlaying = false; bars.style.color = ''; });
+              };
+              b.onclick = () => {
+                if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                audioCtx.resume();
+                playVoicePart();
+              };
+              c.appendChild(b);
+              const tEl = document.createElement('div'); tEl.className = 'msg-time'; tEl.textContent = t; c.appendChild(tEl);
+              msgs.appendChild(w); msgs.scrollTop = msgs.scrollHeight;
+              addLongPress(b, displayText);
+              if (!callActive) setTimeout(() => b.onclick(), 300);
+            } else {
+              const b = document.createElement('div'); b.className = 'bubble'; b.textContent = displayText; c.appendChild(b);
+              const pBtn = document.createElement('button');
+              pBtn.className = 'bubble-play-btn'; pBtn.textContent = '🔊 播放';
+              let pPlaying = false;
+              pBtn.onclick = async () => {
+                if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                audioCtx.resume();
+                if (pPlaying) {
+                  if (currentSource) { try { currentSource.stop(); } catch(e){} currentSource = null; }
+                  pBtn.textContent = '🔊 播放'; pBtn.classList.remove('playing'); pPlaying = false; return;
+                }
+                pPlaying = true; pBtn.textContent = '⏸ 停止'; pBtn.classList.add('playing');
+                await playTTS(displayText, () => { pBtn.textContent = '🔊 播放'; pBtn.classList.remove('playing'); pPlaying = false; });
+              };
+              c.appendChild(pBtn);
+              const tEl = document.createElement('div'); tEl.className = 'msg-time'; tEl.textContent = t; c.appendChild(tEl);
+              msgs.appendChild(w); msgs.scrollTop = msgs.scrollHeight;
+              addLongPress(b, displayText);
+            }
+            if (i === parts.length - 1) {
+              detectSongRequest(trimmed);
+              history.push({ role:'ai', text: trimmed, thinking: thinkingTxt||null, time: t });
+              saveHistory(); setStatus('idle');
+              isGenerating = false; document.getElementById('send-btn').disabled = false;
+              if (onComplete) onComplete(trimmed);
+            }
+          }, i * 700);
+        });
+        return;
+      }
+
+      // 单条消息（原逻辑不变）
+      const isVoiceMsg = trimmed.startsWith('[voice]');
+
+      if (isVoiceMsg) {
+        const spokenText = trimmed.slice(7).trim();
+        aiBub.className = 'bubble voice-msg';
+        aiBub.textContent = '';
+        const dur = document.createElement('span');
+        dur.className = 'voice-dur';
+        dur.textContent = '🎤';
+        const bars = document.createElement('span');
+        bars.className = 'voice-bars';
+        bars.textContent = '▌▍▌▎▍▌▍▌';
+        aiBub.appendChild(dur);
+        aiBub.appendChild(bars);
+        aiBub.style.cursor = 'pointer';
+        let vPlaying = false;
+        const playVoice = async () => {
+          if (vPlaying) return;
+          vPlaying = true;
+          bars.style.color = 'var(--accent)';
+          await playTTS(spokenText, () => { vPlaying = false; bars.style.color = ''; });
+        };
+        aiBub.onclick = () => {
+          if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+          audioCtx.resume();
+          playVoice();
+        };
+        playVoice();
+        fullText = spokenText;
+      } else {
+        if ([...trimmed].length <= 3 && /\p{Emoji}/u.test(trimmed)) {
+          aiBub.classList.add('sticker');
+        }
+        if (fullText && !aiBub.classList.contains('sticker')) {
+          const playBtn = document.createElement('button');
+          playBtn.className = 'bubble-play-btn';
+          playBtn.textContent = '🔊 播放';
+          let btnPlaying = false;
+          playBtn.onclick = async () => {
+            if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            audioCtx.resume();
+            if (btnPlaying) {
+              if (currentSource) { try { currentSource.stop(); } catch(e) {} currentSource = null; }
+              playBtn.textContent = '🔊 播放';
+              playBtn.classList.remove('playing');
+              btnPlaying = false;
+              return;
+            }
+            btnPlaying = true;
+            playBtn.textContent = '⏸ 停止';
+            playBtn.classList.add('playing');
+            await playTTS(fullText, () => {
+              playBtn.textContent = '🔊 播放';
+              playBtn.classList.remove('playing');
+              btnPlaying = false;
+            });
+          };
+          aiContent.appendChild(playBtn);
+        }
+      }
+
+      addLongPress(aiBub, fullText);
+      detectSongRequest(fullText);
+      const aiTime = now();
+      const timeEl = document.createElement('div');
+      timeEl.className = 'msg-time';
+      timeEl.textContent = aiTime;
+      aiContent.appendChild(timeEl);
+      history.push({ role:'ai', text: fullText, thinking: thinkingTxt||null, time: aiTime });
+      saveHistory();
+      setStatus('idle');
+      isGenerating = false;
+      document.getElementById('send-btn').disabled = false;
+      if (onComplete) onComplete(fullText);
+    }
+  }
+}
+
+// ── VOICE CALL ────────────────────────────────────────────────────────────────
+const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+let recognition = null;
+let callActive = false;
+let callTimerInterval = null;
+let callSeconds = 0;
+let speakerOn = true;
+let callListening = false;
+let speakBusy = false;
+let speakQueue = [];
+let recognitionRestartTimer = null;
+let audioCtx = null;
+let currentSource = null;
+
+// 底层 TTS 播放（Web Audio API，iOS 兼容）
+async function playTTS(text, onEnd) {
+  if (!text) return;
+  if (currentSource) { try { currentSource.stop(); } catch(e) {} currentSource = null; }
+  try {
+    const res = await fetch(`${cfg.host}/api/tts`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(cfg.secret ? { Authorization: `Bearer ${cfg.secret}` } : {}),
+      },
+      body: JSON.stringify({ text }),
+    });
+    if (!res.ok) throw new Error(`TTS ${res.status}`);
+    const arrBuf = await res.arrayBuffer();
+    if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    if (audioCtx.state === 'suspended') await audioCtx.resume();
+    const audioBuf = await audioCtx.decodeAudioData(arrBuf);
+    const src = audioCtx.createBufferSource();
+    src.buffer = audioBuf;
+    src.connect(audioCtx.destination);
+    const safety = setTimeout(() => { currentSource = null; if (onEnd) onEnd(); }, audioBuf.duration * 1000 + 3000);
+    src.onended = () => { clearTimeout(safety); currentSource = null; if (onEnd) onEnd(); };
+    src.start(0);
+    currentSource = src;
+  } catch (e) {
+    console.error('[TTS]', e);
+    if (onEnd) onEnd();
+  }
+}
+
+// TTS 预取：只下载解码，不播放（用于提前准备）
+async function fetchTTSBuf(text) {
+  const res = await fetch(`${cfg.host}/api/tts`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...(cfg.secret ? { Authorization: `Bearer ${cfg.secret}` } : {}) },
+    body: JSON.stringify({ text }),
+  });
+  if (!res.ok) throw new Error(`TTS ${res.status}`);
+  if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  if (audioCtx.state === 'suspended') await audioCtx.resume();
+  return audioCtx.decodeAudioData(await res.arrayBuffer());
+}
+
+// 播放已解码的 AudioBuffer，返回 Promise 在结束时 resolve
+function playAudioBuf(audioBuf) {
+  return new Promise(resolve => {
+    if (currentSource) { try { currentSource.stop(); } catch(e) {} currentSource = null; }
+    const src = audioCtx.createBufferSource();
+    src.buffer = audioBuf;
+    src.connect(audioCtx.destination);
+    const safety = setTimeout(() => { currentSource = null; resolve(); }, audioBuf.duration * 1000 + 3000);
+    src.onended = () => { clearTimeout(safety); currentSource = null; resolve(); };
+    src.start(0);
+    currentSource = src;
+  });
+}
+
+// 通话专用：句子入队时立刻开始预取，播放时音频大概率已 ready，衔接无缝
+function callSpeak(rawText) {
+  if (!callActive || !speakerOn || !rawText) return;
+  const parts = rawText.split(/^[ \t]*-{3,}[ \t]*$/m)
+    .map(p => p.trim()).filter(Boolean)
+    .map(p => p.startsWith('[voice]') ? p.slice(7).trim() : p);
+  for (const p of parts) {
+    if (p) speakQueue.push({ text: p, ready: fetchTTSBuf(p) }); // 立刻预取
+  }
+  if (!speakBusy) drainSpeakQueue();
+}
+
+async function drainSpeakQueue() {
+  if (speakBusy) return;
+  speakBusy = true;
+  // 半双工：关麦防回声
+  clearTimeout(recognitionRestartTimer);
+  if (recognition && callListening) { try { recognition.stop(); } catch(e) {} }
+
+  while (speakQueue.length && callActive) {
+    const { text, ready } = speakQueue.shift();
+    const preview = text.length > 18 ? text.slice(0, 18) + '…' : text;
+    document.getElementById('call-status-txt').textContent = preview;
+    try {
+      const audioBuf = await ready; // 大概率已下载完，几乎零等待
+      if (!callActive) break;
+      await playAudioBuf(audioBuf);
+    } catch(e) { console.error('[callSpeak]', e); }
+  }
+
+  speakBusy = false;
+  if (callActive && !isGenerating) {
+    document.getElementById('call-status-txt').textContent = '通话中';
+    setTimeout(() => { if (callActive && !isGenerating && !speakBusy) startCallListening(); }, 250);
+  }
+}
+
+function startCallListening() {
+  if (!callActive || !recognition || callListening || isGenerating || speakBusy) return;
+  document.getElementById('call-status-txt').textContent = '正在听…';
+  try { recognition.start(); } catch(e) {}
+}
+
+async function handleCallSpeech(transcript) {
+  if (!transcript || isGenerating) return;
+  // 停麦去处理
+  clearTimeout(recognitionRestartTimer);
+  if (recognition && callListening) { try { recognition.stop(); } catch(e) {} }
+  document.getElementById('call-status-txt').textContent = '思考中…';
+  const userTime = now();
+  appendMsg('user', transcript, null, userTime);
+  history.push({ role: 'user', text: transcript, time: userTime });
+  saveHistory();
+  await streamAI(
+    `[语音通话] ${transcript}`,
+    null,
+    null,  // onComplete 不用，逐句已经处理了 TTS
+    (sentence) => { if (callActive) callSpeak(sentence); }
+  );
+}
+
+function updateCallTimer() {
+  callSeconds++;
+  const m = String(Math.floor(callSeconds/60)).padStart(2,'0');
+  const s = String(callSeconds%60).padStart(2,'0');
+  const t = `${m}:${s}`;
+  document.getElementById('call-timer').textContent = t;
+  document.getElementById('mini-timer').textContent = t;
+}
+
+function minimizeCall() {
+  document.getElementById('call-screen').classList.remove('active');
+  document.getElementById('mini-call-bar').classList.add('active');
+}
+
+function expandCall() {
+  document.getElementById('call-screen').classList.add('active');
+  document.getElementById('mini-call-bar').classList.remove('active');
+}
+
+function openCall() {
+  // iOS 音频解锁：在用户手势里创建 AudioContext + 播一帧静音
+  if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  audioCtx.resume();
+  const silBuf = audioCtx.createBuffer(1, 1, 22050);
+  const silSrc = audioCtx.createBufferSource();
+  silSrc.buffer = silBuf; silSrc.connect(audioCtx.destination); silSrc.start(0);
+
+  callActive = true;
+  callSeconds = 0;
+  speakQueue = [];
+  speakBusy = false;
+  document.getElementById('call-screen').classList.add('active');
+  document.getElementById('call-status-txt').textContent = '通话中';
+  callTimerInterval = setInterval(updateCallTimer, 1000);
+
+  if (!SpeechRecognition) {
+    document.getElementById('call-status-txt').textContent = '浏览器不支持语音识别';
+    return;
+  }
+
+  recognition = new SpeechRecognition();
+  recognition.lang = 'zh-CN';
+  recognition.continuous = true;    // 连续识别
+  recognition.interimResults = true; // 显示实时中间结果
+
+  recognition.onstart = () => {
+    callListening = true;
+    document.getElementById('call-mic').classList.add('listening');
+    if (!speakBusy && !isGenerating)
+      document.getElementById('call-status-txt').textContent = '正在听…';
+  };
+
+  recognition.onend = () => {
+    callListening = false;
+    document.getElementById('call-mic').classList.remove('listening');
+    // 自动重启：iOS 下 continuous 模式也会自己断，必须重启才不"聋"
+    if (callActive && !isGenerating && !speakBusy) {
+      recognitionRestartTimer = setTimeout(() => {
+        if (callActive && !isGenerating && !speakBusy) startCallListening();
+      }, 450);
+    }
+  };
+
+  recognition.onresult = async (e) => {
+    let interim = '';
+    for (let i = e.resultIndex; i < e.results.length; i++) {
+      const piece = (e.results[i][0]?.transcript || '').trim();
+      if (e.results[i].isFinal) {
+        if (piece) handleCallSpeech(piece);
+      } else {
+        interim += piece;
+      }
+    }
+    if (interim && !isGenerating && !speakBusy) {
+      const preview = interim.length > 16 ? interim.slice(0, 16) + '…' : interim;
+      document.getElementById('call-status-txt').textContent = `听到：${preview}`;
+    }
+  };
+
+  recognition.onerror = (e) => {
+    callListening = false;
+    document.getElementById('call-mic').classList.remove('listening');
+    // no-speech / aborted 正常情况，自动重启
+    if (callActive && !isGenerating && !speakBusy &&
+        (e.error === 'no-speech' || e.error === 'aborted')) {
+      recognitionRestartTimer = setTimeout(() => {
+        if (callActive && !isGenerating && !speakBusy) startCallListening();
+      }, 450);
+    }
+  };
+
+  setTimeout(() => startCallListening(), 600);
+}
+
+function closeCall() {
+  callActive = false;
+  clearInterval(callTimerInterval);
+  clearTimeout(recognitionRestartTimer);
+  speakQueue = [];
+  speakBusy = false;
+  if (recognition) { try { recognition.stop(); } catch(e) {} recognition = null; }
+  if (currentSource) { try { currentSource.stop(); } catch(e) {} currentSource = null; }
+  document.getElementById('call-screen').classList.remove('active');
+  document.getElementById('mini-call-bar').classList.remove('active');
+  document.getElementById('call-timer').textContent = '00:00';
+  document.getElementById('mini-timer').textContent = '00:00';
+}
+
+document.getElementById('call-btn').onclick = () => {
+  openCall();
+};
+document.getElementById('call-end').onclick = closeCall;
+document.getElementById('call-mic').onclick = () => {
+  if (callListening) { try { recognition.stop(); } catch(e) {} }
+  else startCallListening();
+};
+document.getElementById('call-vol').onclick = () => {
+  speakerOn = !speakerOn;
+  document.getElementById('call-vol').textContent = speakerOn ? '🔊' : '🔇';
+  if (!speakerOn && currentSource) { try { currentSource.stop(); } catch(e) {} currentSource = null; }
+};
+
+// ── SERVICE WORKER + PUSH ─────────────────────────────────────────────────────
+function urlB64ToUint8(b64) {
+  const pad = '='.repeat((4 - b64.length % 4) % 4);
+  const raw = atob((b64 + pad).replace(/-/g, '+').replace(/_/g, '/'));
+  return Uint8Array.from([...raw].map(c => c.charCodeAt(0)));
+}
+
+async function subscribePush(reg) {
+  if (!('PushManager' in window)) return;
+  try {
+    const perm = await Notification.requestPermission();
+    if (perm !== 'granted') return;
+    const { key } = await fetch(`${cfg.host}/api/push/key`).then(r => r.json());
+    const sub = await reg.pushManager.subscribe({
+      userVisibleOnly: true,
+      applicationServerKey: urlB64ToUint8(key),
+    });
+    await fetch(`${cfg.host}/api/push/subscribe`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(cfg.secret ? { Authorization: `Bearer ${cfg.secret}` } : {}),
+      },
+      body: JSON.stringify({ chatId, subscription: sub }),
+    });
+    console.log('[push] subscribed');
+  } catch (e) {
+    console.warn('[push] failed:', e);
+  }
+}
+
+let swReg = null;
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('/sw.js')
+    .then(reg => {
+      swReg = reg;
+      // 新 SW 安装后自动刷新页面，确保用户总是拿到最新版
+      reg.addEventListener('updatefound', () => {
+        const newWorker = reg.installing;
+        newWorker.addEventListener('statechange', () => {
+          if (newWorker.state === 'activated') window.location.reload();
+        });
+      });
+    })
+    .catch(() => {});
+  // SW 切换时重载（skipWaiting 触发 controllerchange）
+  navigator.serviceWorker.addEventListener('controllerchange', () => window.location.reload());
+}
+
+document.getElementById('push-btn').onclick = async () => {
+  if (!swReg) return alert('Service Worker 未就绪，请刷新页面');
+  await subscribePush(swReg);
+  alert('通知已开启！');
+};
+
+// ── 拉取主动消息（打开聊天 / 切回前台时）────────────────────────────────────
+async function fetchPending() {
+  if (!cfg.secret && !cfg.host) return;
+  try {
+    const res = await fetch(`${cfg.host}/api/pending/${chatId}`, {
+      headers: cfg.secret ? { Authorization: `Bearer ${cfg.secret}` } : {},
+    });
+    if (!res.ok) return;
+    const { messages } = await res.json();
+    if (!messages.length) return;
+    messages.forEach(m => {
+      const t = new Date(m.time).toLocaleTimeString('zh-CN', { hour:'2-digit', minute:'2-digit' });
+      appendMsg('ai', m.text, null, t);
+      history.push({ role:'ai', text: m.text, time: t });
+    });
+    saveHistory();
+  } catch(e) {}
+}
+
+// 注册 chatId 到服务器（让主动消息不依赖推送订阅）
+async function registerSession() {
+  try {
+    await fetch(`${cfg.host}/api/register`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...(cfg.secret ? { Authorization: `Bearer ${cfg.secret}` } : {}) },
+      body: JSON.stringify({ chatId }),
+    });
+  } catch(e) {}
+}
+registerSession();
+
+// 页面加载时拉一次
+fetchPending();
+// 从后台切回前台时再拉一次
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden) { registerSession(); fetchPending(); }
+});
+
+// ── 动态状态文字 ──────────────────────────────────────────────────────────────
+const statusLabel = document.getElementById('status-label');
+let lastMsgTime = Date.now();
+
+function updateIdleStatus() {
+  const idle = Date.now() - lastMsgTime;
+  const h = new Date().getHours();
+  let txt;
+  if (idle < 2 * 60 * 1000) txt = '在陪你';
+  else if (h >= 23 || h < 6) txt = '她该睡了';
+  else txt = '在等你回来';
+  if (statusLabel.dataset.status === 'idle') statusLabel.textContent = txt;
+}
+setInterval(updateIdleStatus, 30000);
+
+
+// ── 音乐 ──────────────────────────────────────────────────────────────────────
+const musicPanel = document.getElementById('music-panel');
+const musicBar   = document.getElementById('music-bar');
+const musicAudio = new Audio();
+musicAudio.crossOrigin = 'anonymous';
+let currentSongInfo = null;
+let musicProgressTimer = null;
+
+document.getElementById('music-btn').onclick = () => { musicPanel.classList.add('open'); document.getElementById('music-search-input').focus(); };
+document.getElementById('music-panel-back').onclick = () => musicPanel.classList.remove('open');
+
+// 搜索
+let searchTimer = null;
+document.getElementById('music-search-input').oninput = function() {
+  clearTimeout(searchTimer);
+  const q = this.value.trim();
+  if (!q) { document.getElementById('music-results').innerHTML = '<div id="music-search-empty">搜一首歌，我们一起听</div>'; return; }
+  searchTimer = setTimeout(() => doMusicSearch(q), 400);
+};
+document.getElementById('music-search-input').onkeydown = function(e) {
+  if (e.key === 'Enter') { clearTimeout(searchTimer); doMusicSearch(this.value.trim()); }
+};
+
+async function doMusicSearch(q) {
+  if (!q) return;
+  const results = document.getElementById('music-results');
+  results.innerHTML = '<div id="music-search-empty">搜索中…</div>';
+  try {
+    const r = await fetch(`${cfg.host}/api/music/search?q=${encodeURIComponent(q)}`, {
+      headers: cfg.secret ? { Authorization: `Bearer ${cfg.secret}` } : {}
+    });
+    const { songs } = await r.json();
+    if (!songs || songs.length === 0) { results.innerHTML = '<div id="music-search-empty">没找到这首歌</div>'; return; }
+    results.innerHTML = '';
+    songs.forEach(s => {
+      const item = document.createElement('div');
+      item.className = 'music-result-item';
+      const dur = `${Math.floor(s.duration/60)}:${String(s.duration%60).padStart(2,'0')}`;
+      item.innerHTML = `<div class="music-result-icon">♪</div>
+        <div class="music-result-info">
+          <div class="music-result-name">${escHtml(s.name)}</div>
+          <div class="music-result-artist">${escHtml(s.artist)}</div>
+        </div>
+        <div class="music-result-dur">${dur}</div>`;
+      item.onclick = () => playSong(s);
+      results.appendChild(item);
+    });
+  } catch(e) { results.innerHTML = '<div id="music-search-empty">搜索失败，稍后再试</div>'; }
+}
+
+function fmtDur(s) { return `${Math.floor(s/60)}:${String(Math.floor(s%60)).padStart(2,'0')}` }
+
+function playSong(song) {
+  musicPanel.classList.remove('open');
+  currentSongInfo = song;
+  musicAudio.src = `https://music.163.com/song/media/outer/url?id=${song.id}.mp3`;
+  musicAudio.play().catch(() => {});
+  musicBar.classList.add('active');
+  document.getElementById('music-bar-name').textContent = song.name;
+  document.getElementById('music-bar-artist').textContent = song.artist;
+  document.getElementById('music-play-pause').textContent = '⏸';
+  document.getElementById('music-bar-icon').classList.add('playing');
+
+  // 告诉小克在听什么
+  if (!isGenerating) {
+    streamAI(`【系统提示】用户现在开始播放《${song.name}》（${song.artist}），请自然地回应这首歌，可以聊聊你对这首歌的感受、记忆或联想，简短，有你自己的风格。`);
+  }
+}
+
+// 进度条更新
+musicAudio.ontimeupdate = () => {
+  if (!musicAudio.duration) return;
+  const pct = (musicAudio.currentTime / musicAudio.duration * 100).toFixed(1);
+  document.getElementById('music-bar-fill').style.width = pct + '%';
+};
+musicAudio.onended = () => {
+  document.getElementById('music-play-pause').textContent = '▶';
+  document.getElementById('music-bar-icon').classList.remove('playing');
+};
+musicAudio.onpause = () => {
+  document.getElementById('music-play-pause').textContent = '▶';
+  document.getElementById('music-bar-icon').classList.remove('playing');
+};
+musicAudio.onplay = () => {
+  document.getElementById('music-play-pause').textContent = '⏸';
+  document.getElementById('music-bar-icon').classList.add('playing');
+};
+
+document.getElementById('music-play-pause').onclick = () => {
+  if (musicAudio.paused) musicAudio.play().catch(()=>{});
+  else musicAudio.pause();
+};
+document.getElementById('music-close').onclick = () => {
+  musicAudio.pause(); musicAudio.src = '';
+  musicBar.classList.remove('active');
+  currentSongInfo = null;
+  document.getElementById('music-bar-fill').style.width = '0%';
+};
+
+// 小克点歌：识别 AI 回复里的 [点歌：xxx]
+function detectSongRequest(text) {
+  const m = text.match(/\[点歌[：:]\s*(.+?)\]/);
+  if (m) doMusicSearch(m[1].trim());
+}
+
+// ── 朋友圈 ────────────────────────────────────────────────────────────────────
+const momentsView = document.getElementById('moments-view');
+const momentsBadge = document.getElementById('moments-badge');
+
+function getMomentsLastSeen() { return parseInt(localStorage.getItem('momentsLastSeen') || '0'); }
+function setMomentsLastSeen() { localStorage.setItem('momentsLastSeen', Date.now().toString()); }
+
+async function checkMomentsBadge() {
+  try {
+    const r = await fetch(`${cfg.host}/api/moments`, {
+      headers: cfg.secret ? { Authorization:`Bearer ${cfg.secret}` } : {}
+    });
+    const { moments } = await r.json();
+    const lastSeen = getMomentsLastSeen();
+    const hasNew = moments && moments.some(m => new Date(m.time).getTime() > lastSeen);
+    momentsBadge.classList.toggle('visible', !!hasNew);
+  } catch {}
+}
+
+document.getElementById('moments-back-btn').onclick = () => momentsView.classList.remove('open');
+
+checkMomentsBadge();
+setInterval(checkMomentsBadge, 5 * 60 * 1000);
+
+function fmtMomentTime(iso) {
+  const d = new Date(iso);
+  const now = new Date();
+  const diff = (now - d) / 1000;
+  if (diff < 60) return '刚刚';
+  if (diff < 3600) return `${Math.floor(diff/60)}分钟前`;
+  if (diff < 86400) return `${Math.floor(diff/3600)}小时前`;
+  if (diff < 604800) return `${Math.floor(diff/86400)}天前`;
+  return d.toLocaleDateString('zh-CN', { month:'numeric', day:'numeric' });
+}
+
+function renderMoment(m) {
+  const card = document.createElement('div');
+  card.className = 'moment-card';
+  card.dataset.id = m.id;
+
+  const avatar = document.createElement('div');
+  avatar.className = 'moment-avatar';
+
+  const body = document.createElement('div');
+  body.className = 'moment-body';
+
+  const name = document.createElement('div');
+  name.className = 'moment-name';
+  name.textContent = '小克';
+
+  const text = document.createElement('div');
+  text.className = 'moment-text';
+  text.textContent = m.text;
+
+  const meta = document.createElement('div');
+  meta.className = 'moment-meta';
+
+  const timeEl = document.createElement('div');
+  timeEl.className = 'moment-time';
+  timeEl.textContent = fmtMomentTime(m.time);
+
+  const likeBtn = document.createElement('button');
+  likeBtn.className = 'moment-like-btn' + (m.liked ? ' liked' : '');
+  likeBtn.innerHTML = `<svg viewBox="0 0 24 24" fill="${m.liked ? 'currentColor' : 'none'}" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg> ${m.likes || 0}`;
+  likeBtn.onclick = async () => {
+    const r = await fetch(`${cfg.host}/api/moments/${m.id}/like`, {
+      method: 'POST',
+      headers: { 'Content-Type':'application/json', ...(cfg.secret ? { Authorization:`Bearer ${cfg.secret}` } : {}) }
+    });
+    const data = await r.json();
+    m.liked = data.liked; m.likes = data.likes;
+    likeBtn.className = 'moment-like-btn' + (m.liked ? ' liked' : '');
+    likeBtn.innerHTML = `<svg viewBox="0 0 24 24" fill="${m.liked ? 'currentColor' : 'none'}" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg> ${m.likes || 0}`;
+  };
+
+  meta.appendChild(timeEl);
+  meta.appendChild(likeBtn);
+
+  const commentsList = document.createElement('div');
+  commentsList.className = 'moment-comments-list';
+  (m.comments || []).forEach(c => commentsList.appendChild(renderComment(c)));
+
+  const inputRow = document.createElement('div');
+  inputRow.className = 'moment-input-row';
+  const inp = document.createElement('input');
+  inp.className = 'moment-comment-input';
+  inp.placeholder = '评论…';
+  const sendBtn = document.createElement('button');
+  sendBtn.className = 'moment-send-btn';
+  sendBtn.textContent = '发送';
+
+  const submitComment = async () => {
+    const txt = inp.value.trim();
+    if (!txt) return;
+    inp.value = '';
+    sendBtn.disabled = true;
+    const loading = document.createElement('div');
+    loading.className = 'moment-reply-loading';
+    loading.textContent = '小克正在回复…';
+    commentsList.appendChild(loading);
+    try {
+      const r = await fetch(`${cfg.host}/api/moments/${m.id}/comment`, {
+        method: 'POST',
+        headers: { 'Content-Type':'application/json', ...(cfg.secret ? { Authorization:`Bearer ${cfg.secret}` } : {}) },
+        body: JSON.stringify({ text: txt })
+      });
+      const data = await r.json();
+      loading.remove();
+      if (data.comment) {
+        if (!m.comments) m.comments = [];
+        m.comments.push(data.comment);
+        commentsList.appendChild(renderComment(data.comment));
+      }
+    } catch { loading.textContent = '回复失败'; }
+    sendBtn.disabled = false;
+  };
+
+  sendBtn.onclick = submitComment;
+  inp.onkeydown = e => { if (e.key === 'Enter') submitComment(); };
+
+  inputRow.appendChild(inp);
+  inputRow.appendChild(sendBtn);
+
+  body.appendChild(name);
+  body.appendChild(text);
+  body.appendChild(meta);
+  body.appendChild(commentsList);
+  body.appendChild(inputRow);
+
+  card.appendChild(avatar);
+  card.appendChild(body);
+  return card;
+}
+
+function renderComment(c) {
+  const el = document.createElement('div');
+  el.className = 'moment-comment-item';
+  const userSpan = document.createElement('span');
+  userSpan.className = 'moment-comment-user';
+  userSpan.textContent = '慢：';
+  const textSpan = document.createElement('span');
+  textSpan.textContent = c.text;
+  el.appendChild(userSpan);
+  el.appendChild(textSpan);
+  if (c.reply) {
+    const reply = document.createElement('div');
+    reply.className = 'moment-comment-reply';
+    reply.innerHTML = `<span class="moment-comment-reply-name">小克：</span>${c.reply.text}`;
+    el.appendChild(reply);
+  }
+  return el;
+}
+
+async function loadMoments() {
+  const list = document.getElementById('moments-list');
+  try {
+    const r = await fetch(`${cfg.host}/api/moments`, {
+      headers: cfg.secret ? { Authorization:`Bearer ${cfg.secret}` } : {}
+    });
+    const { moments } = await r.json();
+    list.innerHTML = '';
+    if (!moments || moments.length === 0) {
+      list.innerHTML = '<div id="moments-empty">还没有动态<br>小克每天都会来发的</div>';
+      return;
+    }
+    moments.forEach(m => list.appendChild(renderMoment(m)));
+  } catch (e) {
+    list.innerHTML = '<div id="moments-empty">加载失败</div>';
+  }
+}
+
+// ── NAV DROPDOWN ─────────────────────────────────────────────────────────────
+(function() {
+  const navBtn = document.getElementById('nav-btn');
+  const navDrop = document.getElementById('nav-dropdown');
+  const momentsView = document.getElementById('moments-view');
+  const photoWallView = document.getElementById('photo-wall-view');
+  const moodDiaryView = document.getElementById('mood-diary-view');
+
+  function closeNav() { navDrop.classList.remove('open'); }
+  navBtn.onclick = e => {
+    e.stopPropagation();
+    navDrop.classList.toggle('open');
+  };
+  document.addEventListener('click', e => {
+    if (!navDrop.contains(e.target) && e.target !== navBtn) closeNav();
+  });
+
+  document.getElementById('nav-moments').onclick = () => {
+    closeNav();
+    momentsView.classList.add('open');
+    loadMoments();
+    setMomentsLastSeen();
+    momentsBadge.classList.remove('visible');
+  };
+  document.getElementById('nav-photo-wall').onclick = () => {
+    closeNav();
+    photoWallView.classList.add('open');
+    renderPhotoWall();
+  };
+  document.getElementById('nav-mood-diary').onclick = () => {
+    closeNav();
+    moodDiaryView.classList.add('open');
+    renderMoodTimeline();
+  };
+  document.getElementById('nav-weather').onclick = () => {
+    closeNav();
+    fetchAndShareWeather();
+  };
+
+  document.getElementById('photo-wall-back').onclick = () => photoWallView.classList.remove('open');
+  document.getElementById('mood-diary-back').onclick = () => moodDiaryView.classList.remove('open');
+})();
+
+// ── PHOTO WALL ────────────────────────────────────────────────────────────────
+(function() {
+  const STORAGE_KEY = 'ombre_photo_wall';
+  const grid = document.getElementById('photo-wall-grid');
+  const lightbox = document.getElementById('photo-lightbox');
+  const lightboxImg = document.getElementById('photo-lightbox-img');
+
+  document.getElementById('photo-lightbox-close').onclick = () => lightbox.classList.remove('open');
+  lightbox.addEventListener('click', e => { if (e.target === lightbox) lightbox.classList.remove('open'); });
+
+  function getPhotos() {
+    try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]'); } catch { return []; }
+  }
+  function savePhoto(dataUrl) {
+    const photos = getPhotos();
+    photos.unshift({ url: dataUrl, time: new Date().toISOString() });
+    if (photos.length > 200) photos.splice(200);
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(photos));
+  }
+
+  window.renderPhotoWall = function() {
+    const photos = getPhotos();
+    grid.innerHTML = '';
+    if (!photos.length) {
+      grid.innerHTML = '<div id="photo-wall-empty">你们的照片会自动保存在这里<br>发一张给小克试试</div>';
+      return;
+    }
+    photos.forEach(p => {
+      const item = document.createElement('div');
+      item.className = 'photo-wall-item';
+      const img = document.createElement('img');
+      img.src = p.url; img.loading = 'lazy';
+      img.alt = '';
+      item.appendChild(img);
+      item.onclick = () => {
+        lightboxImg.src = p.url;
+        lightbox.classList.add('open');
+      };
+      grid.appendChild(item);
+    });
+  };
+
+  window.savePhotoToWall = savePhoto;
+})();
+
+// Auto-save photos sent in chat to photo wall (capture phase runs before onchange clears files)
+document.getElementById('photo-input').addEventListener('change', function(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = ev => { if (ev.target.result) window.savePhotoToWall(ev.target.result); };
+  reader.readAsDataURL(file);
+}, true);
+
+// ── MOOD DIARY ────────────────────────────────────────────────────────────────
+(function() {
+  const STORAGE_KEY = 'ombre_mood_diary';
+  let selectedMood = '😊';
+
+  document.querySelectorAll('.mood-emoji-btn').forEach(btn => {
+    btn.onclick = () => {
+      document.querySelectorAll('.mood-emoji-btn').forEach(b => b.classList.remove('selected'));
+      btn.classList.add('selected');
+      selectedMood = btn.dataset.mood;
+    };
+  });
+
+  function getEntries() {
+    try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]'); } catch { return []; }
+  }
+  function fmtDiaryTime(iso) {
+    const d = new Date(iso);
+    return d.toLocaleString('zh-CN', { month:'numeric', day:'numeric', hour:'2-digit', minute:'2-digit' });
+  }
+
+  window.renderMoodTimeline = function() {
+    const timeline = document.getElementById('mood-timeline');
+    const entries = getEntries();
+    if (!entries.length) {
+      timeline.innerHTML = '<div id="mood-diary-empty">还没有记录<br>今天心情怎么样？</div>';
+      return;
+    }
+    timeline.innerHTML = '';
+    entries.forEach(entry => {
+      const el = document.createElement('div');
+      el.className = 'mood-entry';
+      el.innerHTML = `<div class="mood-entry-emoji">${entry.mood}</div>
+        <div class="mood-entry-body">
+          <div class="mood-entry-time">${fmtDiaryTime(entry.time)}</div>
+          ${entry.note ? `<div class="mood-entry-text">${entry.note.replace(/</g,'&lt;')}</div>` : ''}
+        </div>`;
+      timeline.appendChild(el);
+    });
+  };
+
+  document.getElementById('mood-save-btn').onclick = () => {
+    const note = document.getElementById('mood-note-input').value.trim();
+    const entry = { mood: selectedMood, note, time: new Date().toISOString() };
+    const entries = getEntries();
+    entries.unshift(entry);
+    if (entries.length > 500) entries.splice(500);
+    localStorage.setItem('ombre_mood_diary', JSON.stringify(entries));
+    document.getElementById('mood-note-input').value = '';
+    renderMoodTimeline();
+    const moodNames = { '😊':'开心', '😢':'难过', '😡':'生气', '😰':'焦虑', '🥱':'无聊', '🥰':'很爱' };
+    const moodLabel = moodNames[selectedMood] || selectedMood;
+    const msg = note ? `今天心情：${selectedMood}${moodLabel}，${note}` : `今天心情：${selectedMood}${moodLabel}`;
+    streamAI(`[情绪日记] ${msg}`);
+  };
+})();
+
+// ── WEATHER ───────────────────────────────────────────────────────────────────
+async function fetchAndShareWeather() {
+  if (!navigator.geolocation) {
+    appendMsg('ai', '你的设备不支持定位，没办法获取天气。', null, now());
+    return;
+  }
+  appendMsg('ai', '正在获取你的位置…', null, now());
+  navigator.geolocation.getCurrentPosition(async pos => {
+    const { latitude: lat, longitude: lon } = pos.coords;
+    try {
+      const r = await fetch(`https://wttr.in/${lat},${lon}?format=j1`);
+      const data = await r.json();
+      const cur = data.current_condition[0];
+      const desc = cur.weatherDesc[0].value;
+      const tempC = cur.temp_C;
+      const feelsLike = cur.FeelsLikeC;
+      const humid = cur.humidity;
+      const area = data.nearest_area[0];
+      const city = area.areaName[0].value;
+      const country = area.country[0].value;
+      const weatherMsg = `[天气] ${city}，${country} · ${desc} · ${tempC}°C（体感${feelsLike}°C）· 湿度${humid}%`;
+      streamAI(weatherMsg);
+    } catch {
+      appendMsg('ai', '天气获取失败，wttr.in 没有响应。', null, now());
+    }
+  }, () => {
+    appendMsg('ai', '获取位置失败，没办法查天气。', null, now());
+  }, { timeout: 8000 });
+}
+</script>
+</body>
+</html>

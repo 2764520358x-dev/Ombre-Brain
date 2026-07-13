@@ -54,3 +54,4 @@ ollama/
 
 # 本地设计预览稿（非应用文件）
 frontend/dashboard-preview.html
+chat/.vapid.json
