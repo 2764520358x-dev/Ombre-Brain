@@ -895,7 +895,7 @@ async def I(
 
 @mcp.tool()
 async def watch_health(limit: Optional[int] = 1) -> str:
-    """查看慢的 Apple Watch 健康数据：最新心率、今日步数、活跃卡路里、睡眠时长。数据由 iPhone 快捷指令每小时自动上报到 Supabase。limit=1 看最新一条（默认），limit=N 看最近 N 条。"""
+    """查看慢的 Apple Watch 健康数据：最新心率、今日步数、睡眠时长、体温。数据由 iPhone 快捷指令每小时自动上报到 Supabase。limit=1 看最新一条（默认），limit=N 看最近 N 条。"""
     supabase_url = "https://dhkjpfrpmeskmauewmnp.supabase.co"
     supabase_key = os.environ.get("SUPABASE_KEY", "")
     if not supabase_key:
@@ -924,11 +924,11 @@ async def watch_health(limit: Optional[int] = 1) -> str:
         lines.append(f"心率：{r['heart_rate']} bpm")
     if r.get("steps") is not None:
         lines.append(f"步数：{r['steps']} 步（今日最新）")
-    if r.get("active_calories") is not None:
-        lines.append(f"活跃卡路里：{r['active_calories']} kcal")
     if r.get("sleep_minutes") is not None:
         sm = r["sleep_minutes"]
         lines.append(f"睡眠：{sm // 60}h {sm % 60}min")
+    if r.get("body_temperature") is not None:
+        lines.append(f"体温：{r['body_temperature']}°C")
     if r.get("watch_battery") is not None:
         lines.append(f"手表电量：{r['watch_battery']}%")
     return "\n".join(lines)
