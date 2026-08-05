@@ -48,36 +48,19 @@ else
   grep -c "SYSTEM ACTION MODE" "${CLAUDE_MD}" > /dev/null && echo "    ✓ 含 SYSTEM ACTION MODE 规则" || echo "    ⚠ 不含 SYSTEM ACTION MODE 规则，建议手动检查"
 fi
 
-echo "==> [4/6] 修复 /usr/bin/claude 包装脚本（确保 NO_REPLY 不被过滤）"
+echo "==> [4/6] 修复 /usr/bin/claude 包装脚本（bypass Python 过滤，避免协议消息被截断）"
 CLAUDE_REAL="/usr/bin/claude.real"
 CLAUDE_WRAPPER="/usr/bin/claude"
 if [ -f "${CLAUDE_REAL}" ]; then
-  # Wrapper already exists, check if NO_REPLY whitelist is present
-  if grep -q "NO_REPLY" "${CLAUDE_WRAPPER}" 2>/dev/null; then
-    echo "    ✓ 包装脚本已含 NO_REPLY 白名单，跳过"
-  else
-    echo "    ⚠ 包装脚本缺少 NO_REPLY 白名单，更新中..."
-    pm2 stop xiaoke 2>/dev/null || true
-    cat > "${CLAUDE_WRAPPER}" << 'WRAPEOF'
+  # 用 exec 直接替换，不加任何过滤管道
+  # 原先的 Python 过滤管道会截断 cc-connect 的协议消息，导致 "agent process exited" 错误
+  pm2 stop xiaoke 2>/dev/null || true
+  cat > "${CLAUDE_WRAPPER}" << 'WRAPEOF'
 #!/bin/bash
-/usr/bin/claude.real "$@" | python3 -u -c "
-import sys
-for line in sys.stdin:
-    stripped = line.strip()
-    if stripped.upper() == 'NO_REPLY':
-        sys.stdout.write(line)
-        sys.stdout.flush()
-        continue
-    en = sum(1 for c in line if 'a' <= c.lower() <= 'z')
-    total = len([c for c in line if not c.isspace()])
-    if total < 4 or en / max(total, 1) < 0.4:
-        sys.stdout.write(line)
-        sys.stdout.flush()
-"
+exec /usr/bin/claude.real "$@"
 WRAPEOF
-    chmod +x "${CLAUDE_WRAPPER}"
-    echo "    包装脚本已更新"
-  fi
+  chmod +x "${CLAUDE_WRAPPER}"
+  echo "    包装脚本已更新（直接透传，不过滤）"
 else
   echo "    未找到 /usr/bin/claude.real，跳过（可能不是包装脚本环境）"
 fi
