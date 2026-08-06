@@ -48,17 +48,42 @@ function socketRequest(method, path, body) {
 }
 
 async function findWeixinDM() {
-  const raw = await socketRequest('GET', '/sessions', null);
-  let sessions;
-  try { sessions = JSON.parse(raw); } catch { throw new Error('sessions parse error: ' + raw.slice(0, 100)); }
+  // Try live sessions API first
+  try {
+    const raw = await socketRequest('GET', '/sessions', null);
+    const sessions = JSON.parse(raw);
+    if (sessions && typeof sessions === 'object') {
+      for (const [key, s] of Object.entries(sessions)) {
+        if (key.startsWith('weixin:dm:') && (!s.project || s.project === PROJECT)) return key;
+      }
+      for (const key of Object.keys(sessions)) {
+        if (key.startsWith('weixin:dm:')) return key;
+      }
+    }
+  } catch {}
 
-  for (const [key, s] of Object.entries(sessions || {})) {
-    if (key.startsWith('weixin:dm:') && (!s.project || s.project === PROJECT)) return key;
-  }
-  for (const key of Object.keys(sessions || {})) {
-    if (key.startsWith('weixin:dm:')) return key;
-  }
-  throw new Error('No active WeChat DM session. Sessions: ' + JSON.stringify(sessions).slice(0, 200));
+  // Fallback: read from crons/jobs.json (other crons still store the real DM session_key)
+  try {
+    const fs = require('fs');
+    const jobs = JSON.parse(fs.readFileSync('/root/.cc-connect/crons/jobs.json', 'utf8'));
+    for (const job of jobs) {
+      if (job.session_key && job.session_key.startsWith('weixin:dm:')) return job.session_key;
+    }
+  } catch {}
+
+  // Last resort: read from cc-connect sessions file
+  try {
+    const fs = require('fs');
+    const glob = fs.readdirSync('/root/.cc-connect/sessions/').filter(f => f.endsWith('.json'));
+    for (const f of glob) {
+      const d = JSON.parse(fs.readFileSync(`/root/.cc-connect/sessions/${f}`, 'utf8'));
+      for (const key of Object.keys(d.sessions || {})) {
+        if (key.startsWith('weixin:dm:')) return key;
+      }
+    }
+  } catch {}
+
+  throw new Error('No WeChat DM session key found anywhere');
 }
 
 async function main() {
