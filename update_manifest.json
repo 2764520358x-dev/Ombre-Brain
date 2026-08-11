@@ -76,6 +76,11 @@
       "size": 62210
     },
     {
+      "path": "src/json_backup.py",
+      "sha256": "4b46b2ef3c5c89e6d5f47f55ce1bae458b689aaa95d52f66ec5e906696af5830",
+      "size": 9918
+    },
+    {
       "path": "src/migrate_engine.py",
       "sha256": "3ee068333e2b9c73c299701f6f3e1d38cbdb94fc51b73a8cf5060aff04fbfcb0",
       "size": 69229
@@ -927,13 +932,18 @@
     },
     {
       "path": "src/web/_shared.py",
-      "sha256": "ceb49098a99d2ded66771c3e120e3250f09aa8743f5d60d96fb5c79fa50f0726",
-      "size": 42575
+      "sha256": "72aa5a5eaba544858fbcdb42445845e25ba5d3ee5df56729916f076fa18d7f1f",
+      "size": 42700
     },
     {
       "path": "src/web/auth.py",
       "sha256": "ddc3fa8d6ce3653f53f2920fc9d5df01eb5e34b85ed928cde0ff0da97f4f5be7",
       "size": 22690
+    },
+    {
+      "path": "src/web/backup.py",
+      "sha256": "d82303bef665f3cdd3063479c81ee430f65389e40e1abf754973037561cf0036",
+      "size": 5065
     },
     {
       "path": "src/web/buckets.py",
