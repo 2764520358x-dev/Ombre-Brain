@@ -18,7 +18,8 @@ breath 是「我睁眼看看自己记得什么」。这个文件根据参数把�
 - 不在这里做实际取桶/调 LLM 的工作
 
 不做什么（边界）：
-- 不直接处理 dehydrate/embedding 调用，全部下放到分支模块
+- 不直接处理 embedding 调用，全部下放到检索分支
+- 正文渲染统一走 _verbatim.py，不进入 dehydrator
 - 不做权限校验，MCP 调用方默认是模型自身
 
 对外暴露：dispatch(query, max_tokens, domain, valence, arousal, max_results,
@@ -29,11 +30,20 @@ breath 是「我睁眼看看自己记得什么」。这个文件根据参数把�
 from typing import Optional
 
 from .. import _runtime as rt
+from .._common import (
+    attach_memory_data_protocol,
+    check_metadata_size,
+    check_query_size,
+    memory_data_protocol_header,
+)
 from .catalog import surface_catalog
 from .feel import surface_feels
 from .importance import surface_by_importance
 from .surface import surface_default
 from .search import surface_search
+from utils import count_tokens_approx
+
+_MEMORY_PROTOCOL_BUDGET_MARGIN = 1
 
 
 async def dispatch(
@@ -46,17 +56,34 @@ async def dispatch(
     importance_min: Optional[int] = -1,
     tags: Optional[str] = "",
     catalog: Optional[bool] = False,
+    date_from: Optional[str] = "",
+    date_to: Optional[str] = "",
 ) -> str:
     # --- Null-safe coercion ---
-    if query is None: query = ""
-    if max_tokens is None: max_tokens = 0
-    if domain is None: domain = ""
-    if valence is None: valence = -1
-    if arousal is None: arousal = -1
-    if max_results is None: max_results = 0
-    if importance_min is None: importance_min = -1
-    if tags is None: tags = ""
-    if catalog is None: catalog = False
+    query = "" if query is None else str(query)
+    if max_tokens is None:
+        max_tokens = 0
+    domain = "" if domain is None else str(domain)
+    if valence is None:
+        valence = -1
+    if arousal is None:
+        arousal = -1
+    if max_results is None:
+        max_results = 0
+    if importance_min is None:
+        importance_min = -1
+    tags = "" if tags is None else str(tags)
+    if catalog is None:
+        catalog = False
+    date_from = "" if date_from is None else str(date_from)
+    date_to = "" if date_to is None else str(date_to)
+
+    query_err = check_query_size(query)
+    if query_err:
+        return query_err
+    metadata_err = check_metadata_size(domain=domain, tags=tags)
+    if metadata_err:
+        return metadata_err
 
     if rt.mark_op:
         rt.mark_op("breath")
@@ -70,15 +97,10 @@ async def dispatch(
         "importance_min": importance_min,
         "tags": tags,
         "catalog": catalog,
+        "date_from": date_from,
+        "date_to": date_to,
     })
     await rt.decay_engine.ensure_started()
-
-    # --- catalog 目录模式：最先短路，0 LLM、只读元数据、每桶一行 ---
-    # 开新窗省 token 的推荐姿势：先 breath(catalog=True) 看目录，
-    # 再 breath(query=...) 精准拉取正文。
-    if catalog:
-        domain_filter = [d.strip() for d in domain.split(",") if d.strip()]
-        return await surface_catalog(domain_filter=domain_filter or None)
 
     surfacing_cfg = rt.config.get("surfacing", {}) or {}
     default_results = int(surfacing_cfg.get("breath_max_results") or 20)
@@ -89,40 +111,63 @@ async def dispatch(
         max_tokens = default_tokens
     max_results = min(max_results, 50)
     max_tokens = min(max_tokens, 20000)
+    tag_filter = [t.strip() for t in tags.split(",") if t.strip()]
+    memory_max_tokens = max(
+        0,
+        max_tokens
+        - count_tokens_approx(f"{memory_data_protocol_header()}\n")
+        - _MEMORY_PROTOCOL_BUDGET_MARGIN,
+    )
+
+    # --- catalog 目录模式：最先短路，0 LLM、只读元数据、每桶一行 ---
+    # 开新窗省 token 的推荐姿势：先 breath(catalog=True) 看目录，
+    # 再 breath(query=...) 精准拉取正文。
+    if catalog:
+        domain_filter = [d.strip() for d in domain.split(",") if d.strip()]
+        return await surface_catalog(
+            domain_filter=domain_filter or None,
+            tag_filter=tag_filter,
+            max_results=max_results,
+        )
 
     # --- 解析 tags 过滤；feel/__feel__ 映射到 feel 通道 ---
-    tag_filter = [t.strip() for t in tags.split(",") if t.strip()]
     if any(t in ("feel", "__feel__") for t in tag_filter):
         domain = "feel"
         tag_filter = [t for t in tag_filter if t not in ("feel", "__feel__")]
 
     # --- Feel 通道优先：即使无 query 也直接拉 feel ---
     if domain.strip().lower() == "feel":
-        return await surface_feels(max_tokens=max_tokens)
+        result = await surface_feels(max_tokens=memory_max_tokens)
+        return attach_memory_data_protocol(result)
 
     # --- importance_min 模式：跳过语义，按 importance 降序 ---
     if importance_min >= 1:
-        return await surface_by_importance(
+        result = await surface_by_importance(
             importance_min=importance_min,
-            max_tokens=max_tokens,
+            max_tokens=memory_max_tokens,
             tag_filter=tag_filter,
         )
+        return attach_memory_data_protocol(result)
 
     # --- 无 query：浮现模式 ---
     if not query or not query.strip():
-        return await surface_default(
+        result = await surface_default(
             max_results=max_results,
-            max_tokens=max_tokens,
+            max_tokens=memory_max_tokens,
             tag_filter=tag_filter,
         )
+        return attach_memory_data_protocol(result)
 
     # --- 有 query：检索模式 ---
-    return await surface_search(
+    result = await surface_search(
         query=query,
         max_results=max_results,
-        max_tokens=max_tokens,
+        max_tokens=memory_max_tokens,
         domain=domain,
         valence=valence,
         arousal=arousal,
         tag_filter=tag_filter,
+        date_from=date_from,
+        date_to=date_to,
     )
+    return attach_memory_data_protocol(result)

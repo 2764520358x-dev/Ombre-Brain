@@ -4,7 +4,6 @@ mcp_require_auth=false → /mcp 全裸奔，任何能连端口的人都能读写
 该分支的启动日志必须是 WARNING 级并讲清风险，避免用户无意识地把大脑暴露到公网。
 源码级护栏（与 test_dashboard_update_source.py 同风格），不需真启动服务。
 """
-import re
 from pathlib import Path
 
 _SERVER = Path(__file__).resolve().parents[1] / "src" / "server.py"
@@ -27,5 +26,14 @@ def test_disabled_branch_uses_warning_not_info():
 
 def test_warning_mentions_risk_terms():
     win = _disabled_branch()
-    for term in ("读写", "记忆", "0.0.0.0"):
+    for term in ("读写", "记忆", "_BIND_HOST"):
         assert term in win, f"缺少风险措辞：{term}"
+
+
+def test_network_guard_runs_before_web_auth_routes_are_registered():
+    src = _SERVER.read_text(encoding="utf-8")
+    guard = src.index("_mcp_network_security = enforce_mcp_network_guard")
+    shared_init = src.index("_wsh.init(config)", guard)
+    route_registration = src.index("_web.register_all(mcp)", shared_init)
+
+    assert guard < shared_init < route_registration
