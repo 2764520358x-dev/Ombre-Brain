@@ -82,12 +82,11 @@ __version__ = get_version()
 logger.info(f"Ombre Brain v{__version__}")
 
 _bk_cfg = config.get("backup_export", {}) or {}
-# 环境变量优先（Render.com 环境变量跨部署持久），其次 config.yaml
 _bk_token = (os.environ.get("OMBRE_BACKUP_TOKEN") or _bk_cfg.get("token") or "").strip()
 _bk_repo = (os.environ.get("OMBRE_BACKUP_REPO") or _bk_cfg.get("repo") or "").strip()
 _bk_branch = (os.environ.get("OMBRE_BACKUP_BRANCH") or _bk_cfg.get("branch") or "main").strip()
 _bk_prefix = (os.environ.get("OMBRE_BACKUP_PREFIX") or _bk_cfg.get("backup_prefix") or "backup").strip()
-backup_manager: JsonBackupManager | None = (
+backup_manager = (
     JsonBackupManager(
         token=_bk_token,
         repo=_bk_repo,
@@ -97,6 +96,332 @@ backup_manager: JsonBackupManager | None = (
     if _bk_token and _bk_repo
     else None
 )
+
+# --- iter 1.7 §A: legacy path migration check / 老路径迁移检测 ---
+# 场景：1.6 早期使用者习惯在项目根跑 `python server.py`；1.7 重组后需要
+# `python src/server.py`。这里只做「检测 + 提醒」，不做任何破坏性动作。
+# load_config() 里 buckets_dir 默认仍是 <repo_root>/buckets，所以老数据不会丢。
+#
+# Python 小知识：
+#   * 变量名以 `_` 开头是「模块内部」约定，不是语法强制
+#   * for/else 这里没用，用了 break 提前退出
+#   * `os.path.isdir(p) and any(...)` 是短路：前者 False 就不会跳 listdir
+try:
+    _bd = config.get("buckets_dir", "")
+    if _bd and os.path.isdir(_bd):
+        _has_data = False
+        # 遍历各个桶目录，任何一个里（含域子目录）有 .md 文件就认定有数据。
+        # 必须递归 os.walk：桶按域存在子目录里（permanent/<域>/x.md），
+        # 只 os.listdir 顶层只会看到域文件夹、永远判定为空 → 误报 "fresh install"
+        # （数据其实都在，breath 也读得到，纯粹是这条日志吓人）。
+        for sub in ("permanent", "dynamic", "feel", "plans", "letters"):
+            p = os.path.join(_bd, sub)
+            if not os.path.isdir(p):
+                continue
+            if any(
+                f.endswith(".md") and not f.startswith(".")
+                for _root, _dirs, _files in os.walk(p)
+                for f in _files
+            ):
+                _has_data = True
+                break
+        if _has_data:
+            logger.info(f"[migration] existing buckets detected at {_bd} — zero data loss expected.")
+        else:
+            logger.info(f"[migration] {_bd} is empty — fresh install assumed.")
+except Exception as _e:  # pragma: no cover - defensive / 防御性兑底
+    # 启动期任何检测出错都不能阻止服务拉起，记个 warning 就过
+    logger.warning(f"[migration] check skipped: {_e}")
+
+# --- Runtime env vars (port + webhook) / 运行时环境变量 ---
+# OMBRE_PORT: HTTP/SSE 监听端口，默认 18001
+# Docker 部署：compose 显式设 OMBRE_PORT=8000 保持容器内 8000（不动 Cloudflare ingress），
+# 由 host 端口映射 18001:8000 对外暴露 18001。裸机：直接监听 18001。
+# 端口优先级：env OMBRE_PORT（Docker 由 Dockerfile 固定 8000）> config.yaml host_port
+# （裸机前端可改、保存即写 config）> 默认 18001。Docker 下前端改 host_port 不影响容器内
+# 监听（仍 8000），由 host 映射 OMBRE_HOST_PORT 决定对外端口（部署脚本读 config 注入）。
+try:
+    _port_raw = os.environ.get("OMBRE_PORT") or str(config.get("host_port") or "") or "18001"
+    OMBRE_PORT = int(_port_raw)
+except (ValueError, TypeError):
+    logger.warning("端口配置不是合法整数，回退到 18001")
+    OMBRE_PORT = 18001
+
+# Docker needs an all-interface default; bare-metal deployments can restrict it
+# with OMBRE_BIND_HOST=127.0.0.1.
+_BIND_HOST = (os.environ.get("OMBRE_BIND_HOST") or "0.0.0.0").strip() or "0.0.0.0"  # nosec B104
+
+# OMBRE_HOOK_URL: 在 breath/dream 被调用后推送事件到该 URL（POST JSON）。
+# OMBRE_HOOK_SKIP: 设为 true/1/yes 跳过推送。详见 ENV_VARS.md。
+# _fire_webhook 每次调用直接读 os.environ（不缓存模块常量）——这样 dashboard 的
+# /api/env-config 改完（它会写 os.environ）即时生效，无需再回写模块全局，
+# 也让该路由能干净地迁出到 web/config_api.py。
+
+
+# ============================================================
+# 调参面板 / Tunable constants
+# ------------------------------------------------------------
+# rule.md §①：禁裸魔法数字。这里集中所有会调的阁值。
+# 与安全、鉴权、性能相关的参数不要在运行时乲变；如需调整请同步跑 pytest。
+# ============================================================
+
+# --- Webhook / HTTP 客户端超时 ---
+_WEBHOOK_TIMEOUT_SECONDS = 5.0
+
+# --- Dashboard 鉴权 / 会话 / 密码 / 日志&错误面板分页常量 已移至 web/_shared.py、web/system.py ---
+
+
+async def _fire_webhook(event: str, payload: dict) -> None:
+    """
+    Fire-and-forget POST to OMBRE_HOOK_URL with the given event payload.
+    Failures are logged at WARNING level only — never propagated to the caller.
+    """
+    hook_url = os.environ.get("OMBRE_HOOK_URL", "").strip()
+    hook_skip = os.environ.get("OMBRE_HOOK_SKIP", "").strip().lower() in ("1", "true", "yes", "on")
+    if hook_skip or not hook_url:
+        return
+    if not hook_url.startswith(("http://", "https://")):
+        logger.warning("OMBRE_HOOK_URL rejected: only http/https URLs are allowed")
+        return
+    try:
+        body = {
+            "event": event,
+            "timestamp": time.time(),
+            "payload": payload,
+        }
+        async with httpx.AsyncClient(timeout=_WEBHOOK_TIMEOUT_SECONDS) as client:
+            await client.post(hook_url, json=body)
+    except Exception as e:
+        # Webhook credentials commonly live in the URL path/query.  Never put
+        # either the configured URL or httpx's URL-bearing exception text in logs.
+        logger.warning("Webhook push failed (%s): %s", event, type(e).__name__)
+
+# --- Initialize core components / 初始化核心组件 ---
+# 统一错误码体系（必须在任何业务初始化之前 configure，确保 errors.jsonl 路径生效）
+try:
+    from errors import (
+        configure_errors_path,
+        OBStartupError,
+        write_fatal_log,
+        record_error,
+        format_error,
+        begin_warnings,
+        pop_warnings,
+        format_warnings_suffix,
+        PublicToolError,
+    )
+except ImportError:
+    from .errors import (  # type: ignore
+        configure_errors_path,
+        OBStartupError,
+        write_fatal_log,
+        record_error,
+        format_error,
+        begin_warnings,
+        pop_warnings,
+        format_warnings_suffix,
+        PublicToolError,
+    )
+configure_errors_path(config.get("buckets_dir", "buckets"))
+
+try:
+    embedding_engine = EmbeddingEngine(config)            # Embedding engine first (BucketManager depends on it)
+except OBStartupError as _ob_err:
+    # OB-F001 已在 OBStartupError 内格式化好；写 fatal log 后退出
+    logger.error(str(_ob_err))
+    write_fatal_log(_ob_err.error_code, _ob_err.detail, buckets_dir=config.get("buckets_dir"))
+    raise
+except RuntimeError as _emb_err:
+    # 兼容尚未迁移到 OBStartupError 的旧 raise（应该不再触发）
+    logger.error(f"[STARTUP FAILED] {_emb_err}")
+    raise SystemExit(f"Ombre Brain 启动中止：{_emb_err}") from _emb_err
+bucket_mgr = BucketManager(config, embedding_engine=embedding_engine)  # Bucket manager / 记忆桶管理器
+_source_max_bytes = int(
+    (config.get("limits") or {}).get("max_grow_input_bytes", 2 * 1024 * 1024)
+)
+source_store = SourceStore(
+    config.get("buckets_dir", "buckets"),
+    max_bytes=_source_max_bytes,
+)
+embedding_outbox = EmbeddingOutbox(config, bucket_mgr, embedding_engine)
+bucket_mgr.attach_embedding_outbox(embedding_outbox)
+dehydrator = Dehydrator(config)                      # Dehydrator / 脱水器
+decay_engine = DecayEngine(config, bucket_mgr)       # Decay engine / 衰减引擎
+import_engine = ImportEngine(config, bucket_mgr, dehydrator, embedding_engine)  # Import engine / 导入引擎
+migrate_engine = MigrateEngine(config, bucket_mgr, embedding_engine)              # Migrate engine / 记忆包迁移引擎
+
+# --- GitHub Sync / GitHub 同步 ---
+from github_sync import GitHubSync  # type: ignore
+_gh_cfg = config.get("github_sync", {}) or {}
+_gh_token = (os.environ.get("OMBRE_GITHUB_TOKEN") or _gh_cfg.get("token") or "").strip()
+github_sync_instance: GitHubSync | None = (
+    GitHubSync(
+        token=_gh_token,
+        repo=_gh_cfg.get("repo", ""),
+        branch=_gh_cfg.get("branch", "main"),
+        path_prefix=_gh_cfg.get("path_prefix", "ombre"),
+        max_source_bytes=_source_max_bytes,
+    )
+    if _gh_token and _gh_cfg.get("repo")
+    else None
+)
+_github_auto_task: "asyncio.Task | None" = None  # 后台定时同步任务
+
+
+async def _github_sync_loop(interval_minutes: int) -> None:
+    """后台定时 GitHub 同步循环。只在 is_validated=True 后执行实际上传。"""
+    import asyncio
+    logger.info(f"[github_sync] auto-sync loop started, interval={interval_minutes}min")
+    # 首次先做一次验证，确认连接可用
+    if _wsh.github_sync_instance and not _wsh.github_sync_instance.is_validated:
+        try:
+            result = await _wsh.github_sync_instance.validate()
+            if not result.get("ok"):
+                logger.warning(f"[github_sync] auto-sync: validate failed: {result.get('error')} — loop will retry next cycle")
+        except Exception as e:
+            logger.warning(f"[github_sync] auto-sync: validate exception: {e}")
+    while True:
+        await asyncio.sleep(interval_minutes * 60)
+        inst = _wsh.github_sync_instance  # 读当前全局引用（config 更新可能替换实例）
+        if inst is None:
+            logger.info("[github_sync] auto-sync: instance gone, stopping loop")
+            return
+        if not inst.is_validated:
+            # 还没验证通过，先 validate
+            try:
+                res = await inst.validate()
+                if not res.get("ok"):
+                    logger.warning(f"[github_sync] auto-sync skipped (not validated): {res.get('error')}")
+                    continue
+            except Exception as e:
+                logger.warning(f"[github_sync] auto-sync validate failed: {e}")
+                continue
+        buckets_dir = config.get("buckets_dir", "")
+        if not buckets_dir:
+            continue
+        try:
+            result = await inst.sync(buckets_dir)
+            if result.get("ok"):
+                logger.info(f"[github_sync] auto-sync ok: {result.get('uploaded', 0)} files")
+            else:
+                logger.warning(f"[github_sync] auto-sync failed: {result.get('error')}")
+        except Exception as e:
+            logger.error(f"[github_sync] auto-sync exception: {e}")
+
+
+def _restart_github_auto_task(interval_minutes: int) -> None:
+    """取消旧任务并按新间隔启动后台同步循环（interval_minutes=0 表示仅取消）。"""
+    import asyncio
+    global _github_auto_task
+    if _github_auto_task and not _github_auto_task.done():
+        _github_auto_task.cancel()
+        _github_auto_task = None
+    if interval_minutes > 0 and _wsh.github_sync_instance is not None:
+        try:
+            loop = asyncio.get_event_loop()
+            _github_auto_task = loop.create_task(_github_sync_loop(interval_minutes))
+        except RuntimeError:
+            pass  # 没有运行中的 event loop（测试环境），跳过
+
+
+# 启动时若配置了自动同步间隔，推迟到事件循环就绪后启动（用 lifespan 钩子）
+_gh_auto_interval: int = int(_gh_cfg.get("auto_interval_minutes") or 0)
+
+
+# --- Create MCP server instance / 创建 MCP 服务器实例 ---
+# host="0.0.0.0" so Docker container's HTTP endpoint is externally reachable
+# stdio mode ignores host (no network)
+#
+# iter 2.2 后对外只有单连接器 /mcp。当前 16 个工具全部直接注册到
+# 这一实例，不再依赖 FastMCP 私有注册表的启动期合并，导入式 ASGI 启动也能
+# 稳定暴露完整工具清单。
+#
+# 远程 Streamable HTTP 固定返回单个 JSON-RPC 对象，并且不要求客户端在
+# initialize 后保存/回传 Mcp-Session-Id。Kelivo 等会静默吞掉 tools/list 异常的
+# 客户端因此不会再出现“已连接但 0 工具”。stdio 不受这两项影响。
+
+_stdio_runtime_lifecycle = None
+
+
+@asynccontextmanager
+async def _stdio_lifespan(_server):
+    lifecycle = _stdio_runtime_lifecycle
+    if lifecycle is None:
+        yield {}
+        return
+
+    await lifecycle.start()
+    try:
+        yield {}
+    finally:
+        await lifecycle.stop()
+
+
+mcp = FastMCP(
+    "Ombre Brain",
+    host=_BIND_HOST,
+    port=OMBRE_PORT,
+    json_response=True,
+    stateless_http=True,
+    lifespan=_stdio_lifespan if config.get("transport", "stdio") == "stdio" else None,
+)
+
+
+# =============================================================
+# Dashboard Auth —— 已拆分：会话/密码/鉴权 helper 在 web/_shared.py，
+# /auth/* 路由在 web/auth.py。这里注入 config，并把 helper 名字 import 回本模块，
+# 让本文件其余尚未迁移的 @mcp.custom_route 路由（大量调用 _require_auth）继续可用；
+# 待这些路由也迁出 web/ 后，本段 import 可删除。
+# =============================================================
+import web as _web
+import web._shared as _wsh
+
+# 注册 OAuth 路由和 MCP 中间件之前统一评估真实网络边界，供启动日志与
+# Dashboard 诊断使用。风险评估不得覆盖明确的 mcp_require_auth 配置。
+_mcp_network_security = enforce_mcp_network_guard(
+    config,
+    environment=os.environ,
+    in_docker=_wsh.in_docker(),
+)
+if _mcp_network_security["guard_active"]:
+    logger.error(
+        "=" * 60 + "\n"
+        "🛡️  MCP 安全门禁已启用：检测到非回环或无法确认边界的免鉴权配置。\n"
+        "    当前进程已在内存中强制开启 MCP 鉴权，config.yaml 原值未被改写。\n"
+        "    原因：%s\n"
+        "    请改用 OAuth/静态 Token，或把服务明确限制到本机回环地址。\n"
+        + "=" * 60,
+        _mcp_network_security["reason"],
+    )
+elif _mcp_network_security["override_active"]:
+    logger.critical(
+        "=" * 60 + "\n"
+        "⚠️  已显式允许非回环免鉴权 MCP：任何能访问该端口的人都可读写记忆。\n"
+        "    原因：%s\n"
+        "    不再需要时请立即删除 OMBRE_ALLOW_INSECURE_MCP。\n"
+        + "=" * 60,
+        _mcp_network_security["reason"],
+    )
+_wsh.init(config)
+# 记忆持久性自检：容器里记忆目录若没挂持久卷，重建就全丢。开机就醒目告警，别让用户
+# 以为「存住了其实没有」。只提示不阻断（阻断会伤部署）。
+try:
+    _dp = _wsh.data_dir_persistence(config.get("buckets_dir", ""))
+    if not _dp["persistent"]:
+        logger.warning(
+            "=" * 60 + "\n"
+            "⚠️  记忆目录未挂载到持久卷：" + str(config.get("buckets_dir", "")) + "\n"
+            "    " + _dp["note"] + "\n"
+            "    （记忆比代码金贵：代码能重部署，记忆丢了找不回。请尽快修正挂载。）\n"
+            + "=" * 60
+        )
+    else:
+        logger.info(f"记忆目录持久性：{_dp['mode']} — {_dp['note']}")
+except Exception as _dpe:
+    logger.warning(f"数据目录持久性自检失败（不影响启动）：{_dpe}")
+# 注入业务引擎/版本/仓库根目录到 web 层（类比 tools/_runtime）。
+# 注意：embedding_engine 会被热重载替换 —— 待 embedding/config 路由迁到 web/ 时，
+# 替换处须同时写 _wsh.embedding_engine（目前这些路由仍在本文件、仍走 global）。
 _backup_auto_task: asyncio.Task | None = None
 
 async def _backup_loop(interval_hours: int) -> None:
