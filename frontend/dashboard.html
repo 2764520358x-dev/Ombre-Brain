@@ -1888,7 +1888,7 @@
     }
     .tabs {
       display: grid;
-      grid-template-columns: repeat(11, minmax(0, 1fr));
+      grid-template-columns: repeat(12, minmax(0, 1fr));
       margin: 12px 24px 8px;
     }
     .tab {
@@ -1899,7 +1899,7 @@
     .tab-spacer { display: none; }
   }
 
-  /* 更窄的 PC 窗口将入口稳定排成 6 + 5，避免“关于”独占一行。 */
+  /* 更窄的 PC 窗口将入口稳定排成 6 + 6，避免“关于”独占一行。 */
   @media (min-width: 769px) and (max-width: 1100px) {
     .tabs { grid-template-columns: repeat(6, minmax(0, 1fr)); }
   }
@@ -1937,6 +1937,89 @@
       padding: 7px 10px 5px;
     }
     .tab-spacer { display: none; }
+  }
+
+  /* ===== Our Diary — warm paper, kept intentionally separate from system panels ===== */
+  .diary-shell {
+    position: relative;
+    max-width: 980px;
+    margin: 4px auto 40px;
+    padding: 42px 48px 50px;
+    overflow: hidden;
+    border-radius: 30px;
+    background:
+      radial-gradient(circle at 88% 10%, rgba(194,152,47,.14), transparent 25%),
+      linear-gradient(145deg, #f8f1e5 0%, #efe4d2 100%);
+    box-shadow: 14px 16px 36px rgba(104,83,53,.24), -8px -8px 24px rgba(255,255,255,.7);
+  }
+  .diary-shell::before {
+    content: '';
+    position: absolute;
+    inset: 14px;
+    border: 1px solid rgba(155,119,67,.22);
+    border-radius: 22px;
+    pointer-events: none;
+  }
+  .diary-ribbon {
+    position: absolute;
+    top: 0;
+    right: 54px;
+    width: 34px;
+    height: 74px;
+    background: linear-gradient(180deg, #b85c3c, #91452f);
+    filter: drop-shadow(0 5px 5px rgba(74,39,27,.22));
+    clip-path: polygon(0 0,100% 0,100% 100%,50% 79%,0 100%);
+  }
+  .diary-head { position:relative;display:flex;align-items:flex-end;gap:20px;margin-bottom:24px; }
+  .diary-date-card {
+    width: 88px;height:98px;flex:0 0 88px;display:flex;flex-direction:column;align-items:center;justify-content:center;
+    color:#fff;background:linear-gradient(155deg,#bd6b4d,#9e4e35);border-radius:18px 18px 26px 18px;
+    box-shadow:6px 7px 15px rgba(105,57,38,.25),inset 0 1px rgba(255,255,255,.35);transform:rotate(-2deg);
+  }
+  .diary-date-card .day { font-family:'Cormorant Garamond',serif;font-size:40px;font-weight:600;line-height:.9; }
+  .diary-date-card .month { margin-top:8px;font-size:10px;letter-spacing:2px;text-transform:uppercase;opacity:.88; }
+  .diary-title { min-width:0; }
+  .diary-title .eyebrow { color:#a06d4f;font-size:11px;letter-spacing:3px;text-transform:uppercase; }
+  .diary-title h2 { margin:3px 0 1px;font-family:'Noto Serif SC',serif;font-size:30px;font-weight:500;letter-spacing:3px;color:#4b382d; }
+  .diary-title p { margin:0;color:#8a7566;font-family:'Noto Serif SC',serif;font-size:12px; }
+  .diary-toolbar { position:relative;display:grid;grid-template-columns:auto minmax(180px,1fr) auto;gap:10px;align-items:center;margin-bottom:18px; }
+  .diary-date-nav { display:flex;gap:7px;align-items:center; }
+  .diary-date-nav button, .diary-refresh {
+    width:38px;height:38px;border:0;border-radius:50%;background:#f5eadb;color:#8a6047;cursor:pointer;
+    box-shadow:3px 4px 9px rgba(111,85,58,.17),-2px -2px 6px rgba(255,255,255,.8);
+  }
+  #diary-date, #diary-search {
+    height:42px;border:0!important;border-radius:14px!important;background:rgba(255,252,246,.68)!important;color:#59483d!important;
+    box-shadow:inset 2px 3px 8px rgba(111,85,58,.12),inset -2px -2px 5px rgba(255,255,255,.8)!important;
+  }
+  .diary-paper {
+    position:relative;min-height:360px;padding:42px 48px 50px;border-radius:6px 20px 20px 6px;
+    color:#493d35;font-family:'Noto Serif SC',Georgia,serif;line-height:2.15;
+    background:
+      linear-gradient(90deg, transparent 31px, rgba(190,98,75,.18) 32px, transparent 33px),
+      repeating-linear-gradient(180deg, transparent 0, transparent 33px, rgba(128,111,91,.10) 34px),
+      #fffdf8;
+    box-shadow:0 12px 30px rgba(91,70,47,.18),inset 7px 0 12px rgba(115,91,65,.06);
+  }
+  .diary-paper::after { content:'A × M';position:absolute;right:24px;bottom:14px;color:rgba(159,93,64,.38);font-family:'Cormorant Garamond',serif;font-size:13px;letter-spacing:2px; }
+  .diary-footer { position:relative;display:flex;justify-content:space-between;align-items:center;margin-top:16px;padding:0 4px;color:#927e6d;font-size:11px; }
+
+  @media (max-width: 768px) {
+    #diary-view { padding:18px 12px 30px; }
+    .diary-shell { padding:30px 18px 28px;border-radius:24px; }
+    .diary-shell::before { inset:9px;border-radius:18px; }
+    .diary-ribbon { right:28px;width:27px;height:57px; }
+    .diary-head { gap:13px;margin-bottom:18px;align-items:center; }
+    .diary-date-card { width:68px;height:78px;flex-basis:68px;border-radius:15px 15px 20px 15px; }
+    .diary-date-card .day { font-size:32px; }
+    .diary-date-card .month { font-size:8px;margin-top:6px; }
+    .diary-title h2 { font-size:23px;letter-spacing:2px; }
+    .diary-title p { font-size:11px;line-height:1.55; }
+    .diary-toolbar { grid-template-columns:1fr auto; }
+    .diary-date-nav { grid-column:1/-1; }
+    #diary-date { flex:1;min-width:0; }
+    #diary-search { min-width:0!important;width:100%; }
+    .diary-paper { min-height:330px;padding:32px 24px 42px;border-radius:5px 15px 15px 5px;font-size:14px;line-height:2.05; }
   }
 </style>
 </head>
@@ -2003,6 +2086,7 @@
   <div class="tab" data-tab="network"><span>记忆网络</span><span class="tab-en">Network</span></div>
   <div class="tab" data-tab="plan"><span>计划</span><span class="tab-en">Plans</span></div>
   <div class="tab" data-tab="letters"><span>信</span><span class="tab-en">Letters</span></div>
+  <div class="tab" data-tab="diary"><span>日记</span><span class="tab-en">Diary</span></div>
   <div class="tab" data-tab="anchors"><span>锚点</span><span class="tab-en">Anchors</span></div>
   <div class="tab" data-tab="import"><span>导入</span><span class="tab-en">Import</span></div>
   <div class="tab" data-tab="faq"><span>帮助</span><span class="tab-en">FAQ</span></div>
@@ -2375,6 +2459,34 @@
         <div style="text-align:center;color:var(--text-dim);padding:36px 0;font-size:13px;">点击「刷新」加载信件…</div>
       </div>
     </div>
+  </div>
+</div>
+
+<!-- ====== Private diary: read-only entries written by the companion ====== -->
+<div class="content" id="diary-view" style="display:none">
+  <div class="diary-shell">
+    <div class="diary-ribbon" aria-hidden="true"></div>
+    <header class="diary-head">
+      <div class="diary-date-card"><span class="day" id="diary-day">--</span><span class="month" id="diary-month">OUR DAYS</span></div>
+      <div class="diary-title">
+        <div class="eyebrow">A PRIVATE PLACE FOR US</div>
+        <h2>我们的日记</h2>
+        <p>阿澈写下，慢慢亲自翻开。那些普通的小事，也值得好好留下。</p>
+      </div>
+    </header>
+    <div class="diary-toolbar">
+      <div class="diary-date-nav">
+        <button onclick="moveDiary(1)" title="前一天">‹</button>
+        <select id="diary-date" onchange="loadDiaryEntry(this.value)"></select>
+        <button onclick="moveDiary(-1)" title="后一天">›</button>
+      </div>
+      <input id="diary-search" type="search" placeholder="在这一天里找一句话…" oninput="renderCurrentDiary()" />
+      <button class="diary-refresh" onclick="loadDiaryDates()" title="刷新"><i data-lucide="refresh-cw"></i></button>
+    </div>
+    <article id="diary-entry" class="diary-paper">
+        <div style="text-align:center;color:var(--text-dim);padding:60px 0;font-size:13px;">点开「日记」后会加载最新一篇。</div>
+    </article>
+    <footer class="diary-footer"><span id="diary-count"></span><span>只有慢慢能打开 · PRIVATE</span></footer>
   </div>
 </div>
 
@@ -4652,6 +4764,105 @@ async function hardDeleteSelectedTests() {
   await loadBuckets();
 }
 
+let _currentDiary = {date: '', content: ''};
+
+function diaryMarkdown(raw, query) {
+  const needle = (query || '').trim().toLocaleLowerCase();
+  function highlight(text) {
+    const safe = esc(text);
+    if (!needle) return safe;
+    const lower = text.toLocaleLowerCase();
+    let out = '', start = 0, at;
+    while ((at = lower.indexOf(needle, start)) !== -1) {
+      out += esc(text.slice(start, at));
+      out += '<mark style="background:var(--accent-glow);color:inherit;border-radius:3px;padding:0 2px;">' + esc(text.slice(at, at + needle.length)) + '</mark>';
+      start = at + needle.length;
+    }
+    return out + esc(text.slice(start));
+  }
+  return String(raw || '').split(/\r?\n/).map(function(line) {
+    if (/^###\s+/.test(line)) return '<h4 style="font-size:16px;margin:22px 0 6px;color:var(--accent);">' + highlight(line.replace(/^###\s+/, '')) + '</h4>';
+    if (/^##\s+/.test(line)) return '<h3 style="font-size:19px;margin:25px 0 8px;color:var(--accent);">' + highlight(line.replace(/^##\s+/, '')) + '</h3>';
+    if (/^#\s+/.test(line)) return '<h2 style="font-size:23px;margin:4px 0 18px;color:var(--accent);">' + highlight(line.replace(/^#\s+/, '')) + '</h2>';
+    if (/^[-*]\s+/.test(line)) return '<div style="padding-left:20px;position:relative;"><span style="position:absolute;left:4px;color:var(--accent);">·</span>' + highlight(line.replace(/^[-*]\s+/, '')) + '</div>';
+    if (!line.trim()) return '<div style="height:12px;"></div>';
+    return '<p style="margin:0 0 8px;white-space:pre-wrap;overflow-wrap:anywhere;">' + highlight(line) + '</p>';
+  }).join('');
+}
+
+function renderCurrentDiary() {
+  const entry = document.getElementById('diary-entry');
+  if (!entry) return;
+  if (!_currentDiary.content) {
+    entry.innerHTML = '<div style="text-align:center;color:var(--text-dim);padding:60px 0;font-size:13px;">这一天还没有日记。</div>';
+    return;
+  }
+  const q = document.getElementById('diary-search')?.value || '';
+  entry.innerHTML = diaryMarkdown(_currentDiary.content, q);
+}
+
+function setDiaryCalendar(date) {
+  const parts = String(date || '').split('-');
+  const day = document.getElementById('diary-day');
+  const month = document.getElementById('diary-month');
+  if (day) day.textContent = parts[2] || '--';
+  if (month) month.textContent = parts.length === 3 ? (parts[0] + ' · ' + parts[1]) : 'OUR DAYS';
+}
+
+function moveDiary(step) {
+  const select = document.getElementById('diary-date');
+  if (!select || !select.options.length) return;
+  const next = Math.max(0, Math.min(select.options.length - 1, select.selectedIndex + step));
+  if (next === select.selectedIndex) return;
+  select.selectedIndex = next;
+  loadDiaryEntry(select.value);
+}
+
+async function loadDiaryEntry(date) {
+  if (!date) return;
+  setDiaryCalendar(date);
+  const entry = document.getElementById('diary-entry');
+  entry.innerHTML = '<div style="text-align:center;color:var(--text-dim);padding:60px 0;font-size:13px;">正在翻开 ' + esc(date) + '…</div>';
+  try {
+    const r = await fetch(BASE + '/api/diary?date=' + encodeURIComponent(date), {cache:'no-store'});
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.error || '读取失败');
+    _currentDiary = d;
+    renderCurrentDiary();
+  } catch (e) {
+    entry.innerHTML = '<div style="text-align:center;color:var(--negative);padding:60px 0;">' + esc(e.message) + '</div>';
+  }
+}
+
+async function loadDiaryDates() {
+  const select = document.getElementById('diary-date');
+  const count = document.getElementById('diary-count');
+  if (!select) return;
+  const previous = select.value || _currentDiary.date;
+  try {
+    const r = await fetch(BASE + '/api/diary', {cache:'no-store'});
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.error || '读取失败');
+    select.innerHTML = (d.dates || []).map(function(date) {
+      return '<option value="' + esc(date) + '">' + esc(date) + '</option>';
+    }).join('');
+    if (previous && (d.dates || []).includes(previous)) select.value = previous;
+    if (count) {
+      const dates = d.dates || [];
+      const earliest = dates.length ? dates[dates.length - 1] : '';
+      const latest = dates.length ? dates[0] : '';
+      count.textContent = dates.length
+        ? ('共 ' + (d.total || 0) + ' 篇 · ' + earliest + ' 至 ' + latest)
+        : '还没有日记';
+    }
+    if (select.value) return loadDiaryEntry(select.value);
+    _currentDiary = {date:'', content:''};
+    renderCurrentDiary();
+  } catch (e) {
+    if (count) count.textContent = e.message;
+  }
+}
+
 function activateDashboardTab(tab) {
     document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
     tab.classList.add('active');
@@ -4667,6 +4878,7 @@ function activateDashboardTab(tab) {
     document.getElementById('v3-debug-view').style.display = target === 'v3-debug' ? '' : 'none';
     document.getElementById('settings-view').style.display = target === 'settings' ? '' : 'none';
     document.getElementById('letters-view').style.display = target === 'letters' ? '' : 'none';
+    document.getElementById('diary-view').style.display = target === 'diary' ? '' : 'none';
     document.getElementById('anchors-view').style.display = target === 'anchors' ? '' : 'none';
     document.getElementById('about-view').style.display = target === 'about' ? '' : 'none';
     if (target !== 'network' && _netRAF) { cancelAnimationFrame(_netRAF); _netRAF = null; }
@@ -4696,6 +4908,7 @@ function activateDashboardTab(tab) {
       renderMcpUrls();
     }
     if (target === 'letters') pending.push(loadLetters());
+    if (target === 'diary') pending.push(loadDiaryDates());
     if (target === 'anchors') pending.push(loadAnchorsView());
     if (target === 'about') pending.push(loadAbout());
     return Promise.allSettled(pending);
@@ -9752,6 +9965,9 @@ function refreshAuthenticatedActiveView() {
   let target = null;
   if (location.hash === '#letters') {
     target = document.querySelector('.tab[data-tab="letters"]');
+  }
+  if (location.hash === '#diary') {
+    target = document.querySelector('.tab[data-tab="diary"]');
   }
   if (!target) target = document.querySelector('.tab.active');
   if (target) return activateDashboardTab(target);

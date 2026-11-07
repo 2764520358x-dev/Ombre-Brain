@@ -85,6 +85,12 @@ def register(mcp) -> None:
         from starlette.responses import RedirectResponse
         return RedirectResponse(url="/static/favicon.svg", status_code=301)
 
+    @mcp.custom_route("/diary", methods=["GET"])
+    async def diary_redirect(request: Request) -> Response:
+        """Stable bookmark for the private diary tab."""
+        from starlette.responses import RedirectResponse
+        return RedirectResponse(url="/#diary", status_code=302)
+
     @mcp.custom_route("/health", methods=["GET"])
     async def health_check(request: Request) -> Response:
         from starlette.responses import JSONResponse
