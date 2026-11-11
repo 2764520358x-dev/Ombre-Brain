@@ -3,7 +3,8 @@
 web/hooks.py — breath 浮现挂载点（HTTP hook）
 ========================================
 
-- /breath-hook：对话开头由外部 hook 拉取，返回应浮现的记忆（pinned + 未解决采样）。
+- /breath-hook：对话开头由外部 hook 拉取，返回应浮现的记忆
+  （pinned + active plans + 未解决采样）。
   protected 只防衰减，主池与 Letter/I 附加池都不通过 hook 主动注入。
 
 不提供 /dream-hook：dream 按哲学不是义务、不该每次开场自动触发（详见下方端点处注释）。
@@ -306,6 +307,20 @@ def register(mcp) -> None:
                     key=lambda bucket: sh.decay_engine.calculate_score(bucket["metadata"]),
                     reverse=True,
                 )
+                active_plans = [
+                    bucket for bucket in all_buckets
+                    if bucket["metadata"].get("type") == "plan"
+                    and str(bucket["metadata"].get("status") or "active").lower()
+                    == "active"
+                    and not _truthy(bucket["metadata"].get("protected"))
+                ]
+                active_plans.sort(
+                    key=lambda bucket: (
+                        float(bucket["metadata"].get("weight", 0.5) or 0.5),
+                        str(bucket["metadata"].get("created", "")),
+                    ),
+                    reverse=True,
+                )
 
                 header = (
                     "[Ombre Brain - 记忆浮现]\n"
@@ -368,6 +383,27 @@ def register(mcp) -> None:
                         bucket,
                         role="core_memory_summary",
                         prefix="📌 [核心准则] ",
+                    ):
+                        break
+
+                # Plans are promises and unfinished work, not spontaneous
+                # recollections.  Surface them deterministically at session
+                # start so they cannot disappear merely because ordinary
+                # memory sampling picked something else.  Keep their exact
+                # wording: unlike long memories, plans are already concise and
+                # dehydrating them can erase the condition for completion.
+                max_active_plans = setting_int("max_active_plans", 12, 0, 50)
+                for bucket in active_plans[:max_active_plans]:
+                    raw = strip_wikilinks(str(bucket.get("content") or "")).strip()
+                    if not raw:
+                        continue
+                    if not append_block(
+                        _hook_data_block(
+                            bucket,
+                            f"📋 [未完成任务] {raw}",
+                            role="active_plan",
+                            content_truncated=False,
+                        )
                     ):
                         break
 

@@ -66,6 +66,8 @@ mcp_token: ""
 # /breath-hook 和 /dream-hook 默认不公开；可用 Dashboard 登录态或 token 调用。
 # 只有在反代层另有鉴权时，才建议显式打开 allow_public。
 hooks:
+  # SessionStart 最多稳定带出的未完成计划数；0 表示不注入。
+  max_active_plans: 12
   token: ""
   allow_public: false
 
