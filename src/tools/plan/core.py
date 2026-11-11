@@ -20,7 +20,7 @@ breath 中。
 - plan 不做向量去重，只做精确文本去重
 - letter 永不合并、永不压缩、永不被衰减归档
 
-对外暴露：plan_create / letter_write / letter_read
+对外暴露：plan_create / plan_read / letter_write / letter_read
 ========================================
 """
 
@@ -305,6 +305,72 @@ async def plan_create(
     # 注意：bucket_mgr.create() 已在 content 落盘后投递 embedding outbox
     # 向量，这里不需要也不应该重复调用 generate_and_store（见 hold/feel.py 同类注释）。
     return f"📋plan→{bucket_id} [{status}]"
+
+
+async def plan_read(
+    status: Optional[str] = "active",
+    limit: Optional[int] = 20,
+) -> str:
+    """Read plans without pulling the full memory catalog through pulse()."""
+    normalized_status = str(status or "active").strip().lower()
+    if normalized_status not in {"active", "resolved", "abandoned", "all"}:
+        normalized_status = "active"
+    try:
+        parsed_limit = max(1, min(50, int(limit or 20)))
+    except (TypeError, ValueError, OverflowError):
+        parsed_limit = 20
+    try:
+        all_buckets = await rt.bucket_mgr.list_all(include_archive=False)
+    except Exception as exc:
+        return f"读取计划失败: {exc}"
+
+    plans = []
+    for bucket in all_buckets:
+        meta = bucket.get("metadata") or {}
+        if meta.get("type") != "plan":
+            continue
+        if str(meta.get("protected") or "").strip().lower() in {
+            "1", "true", "yes", "on",
+        }:
+            continue
+        bucket_status = str(meta.get("status") or "active").strip().lower()
+        if normalized_status != "all" and bucket_status != normalized_status:
+            continue
+        plans.append(bucket)
+
+    def _plan_weight(bucket: dict) -> float:
+        try:
+            value = float((bucket.get("metadata") or {}).get("weight") or 0.5)
+        except (TypeError, ValueError, OverflowError):
+            return 0.5
+        return value if math.isfinite(value) else 0.5
+
+    plans.sort(
+        key=lambda bucket: (
+            _plan_weight(bucket),
+            str((bucket.get("metadata") or {}).get("created") or ""),
+        ),
+        reverse=True,
+    )
+    plans = plans[:parsed_limit]
+    if not plans:
+        return f"=== {normalized_status} plans ===\n（没有）"
+
+    parts = []
+    for bucket in plans:
+        meta = bucket.get("metadata") or {}
+        bucket_status = str(meta.get("status") or "active").strip().lower()
+        created = str(meta.get("created") or "")[:10]
+        payload = (
+            f"[{bucket['id']}] [{bucket_status}] {created}\n"
+            + strip_wikilinks(str(bucket.get("content") or ""))
+        )
+        parts.append(
+            stored_data_marker(payload, provenance=f"plan:{bucket['id']}")
+            + "\n"
+            + payload
+        )
+    return f"=== {normalized_status} plans ===\n" + "\n\n---\n\n".join(parts)
 
 
 async def letter_write(

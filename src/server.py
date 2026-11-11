@@ -1072,13 +1072,21 @@ async def pulse(include_archive: Optional[bool] = False) -> str:
 
 @mcp.tool()
 async def plan(
-    content: str,
+    content: Optional[str] = "",
     status: Optional[str] = "active",
     related_bucket: Optional[str] = "",
     weight: Optional[float] = 0.5,
     why_remembered: Optional[str] = "",
+    read: Optional[bool] = False,
+    limit: Optional[int] = 20,
 ) -> str:
-    """登记一个待办/承诺/未闭环事项。status=active(默认)/resolved/abandoned。related_bucket 可选,关联到某个普通记忆桶。weight=承诺重量 0.0-1.0(默认 0.5),与 importance 区分——importance 表示「多重要」、weight 表示「多重」。why_remembered=登记原因(可选、仅展示)。plan 不衰减、不出现在普通 breath,仅在 dream 末尾的 active 段返回;后续 hold/grow 写入新事件时系统自动判断已登记的 plan 是否完成。"""
+    """登记或读取待办/承诺/未闭环事项。read=True 时按 status 读取计划（默认 active），limit=1..50；不传 read 时 content 必填并创建计划。status=active(默认)/resolved/abandoned/all（all 仅用于读取）。related_bucket 可选,关联到某个普通记忆桶。weight=承诺重量 0.0-1.0(默认 0.5),与 importance 区分——importance 表示「多重要」、weight 表示「多重」。why_remembered=登记原因(可选、仅展示)。plan 不衰减；active plans 会在 SessionStart 稳定浮现，也可在长期会话中用 plan(read=True) 轻量读取。"""
+    if read:
+        return await _with_notice(
+            _t_plan.plan_read(status=status, limit=limit),
+            op="plan_read",
+            args={"status": status, "limit": limit},
+        )
     return await _with_notice(
         _t_plan.plan_create(
             content=content, status=status, related_bucket=related_bucket,
@@ -1089,6 +1097,7 @@ async def plan(
             "content_len": len(content or ""), "status": status,
             "related_bucket": related_bucket, "weight": weight,
             "why_len": len(why_remembered or ""),
+            "read": read, "limit": limit,
         },
     )
 

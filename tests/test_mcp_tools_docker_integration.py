@@ -760,6 +760,21 @@ def test_plan_invalid_status_falls_back_to_active(mcp_client):
     assert "[active]" in result
 
 
+def test_plan_read_returns_active_plans_without_full_pulse(mcp_client):
+    marker = _marker("plan-read")
+    created = mcp_client.call(
+        "plan",
+        {"content": marker, "status": "active", "weight": 0.8},
+    )
+    bucket_id = _bucket_id(created)
+
+    result = mcp_client.call("plan", {"read": True, "status": "active", "limit": 20})
+
+    assert bucket_id in result
+    assert marker in result
+    assert "=== active plans ===" in result
+
+
 def test_letter_write_persists_verbatim_letter(mcp_client):
     marker = _marker("letter-write")
     result = mcp_client.call(
